@@ -36,6 +36,8 @@ unsigned WINAPI RecvThread(void* Argument);
 unsigned WINAPI SendThread(void* Argument); 
 unsigned WINAPI RanderThread(void* Argument);
 
+void SendPacket(SOCKET ServerSocket, IPacket& Data, EPacketType Type);
+
 void Render(SDL_Renderer* MyRender); //랜더 함수
 void HideCursor(); //커서 숨기기 함수
 
@@ -72,8 +74,8 @@ int main(int argc, char* argv[])
 	cout << "client connect" << endl;
 
 	C2S_Login LoginData;
-	LoginData.UserID = "Test";
-	LoginData.HashKey = "1as3f356dsd6gyhg";
+	LoginData.UserID = "Origin";
+	LoginData.HashKey = "base64incoding";
 
 	Header LoginHeader;
 	LoginHeader.MakeHeader(static_cast<unsigned short>(LoginData.ToString().length()), EPacketType::C2S_Login);
@@ -110,20 +112,7 @@ int main(int argc, char* argv[])
 					C2S_Move Data;
 					Data.ClientSocket = MyClientID;
 					Data.Direction = *KeyCode;
-					Header DataHeader;
-					DataHeader.MakeHeader((int)(Data.ToString().length()), EPacketType::C2S_Move);
-					//header
-					int SentBytes = SendAll(ServerSocket, (char*)&DataHeader, HeaderSize);
-					if (SentBytes <= 0)
-					{
-						cout << "C2S_Move header send fail." << endl;
-					}
-					//Data
-					SentBytes = SendAll(ServerSocket, Data.ToString().c_str(), (int)(Data.ToString().length()));
-					if (SentBytes <= 0)
-					{
-						cout << "C2S_Move Data send fail." << endl;
-					}
+					SendPacket(ServerSocket, Data, EPacketType::C2S_Move);
 				}
 			}
 		}
@@ -260,20 +249,7 @@ unsigned WINAPI SendThread(void* Argument)
 			C2S_Move Data;
 			Data.ClientSocket = MyClientID;
 			Data.Direction = (char)KeyCode;
-			Header DataHeader;
-			DataHeader.MakeHeader((int)(Data.ToString().length()), EPacketType::C2S_Move);
-			//header
-			int SentBytes = SendAll(ServerSocket, (char*)&DataHeader, HeaderSize);
-			if (SentBytes <= 0)
-			{
-				cout << "C2S_Move header send fail." << endl;
-			}
-			//Data
-			SentBytes = SendAll(ServerSocket, Data.ToString().c_str(), (int)(Data.ToString().length()));
-			if (SentBytes <= 0)
-			{
-				cout << "C2S_Move Data send fail." << endl;
-			}
+			SendPacket(ServerSocket, Data,EPacketType::C2S_Move);
 		}
 		else if (KeyCode == 13)
 		{
@@ -283,25 +259,30 @@ unsigned WINAPI SendThread(void* Argument)
 			Data.Message = SendBuffer;
 			Data.Gold = 0;
 			std::string JSONString = Data.ToString();
-			Header DataHeader;
-			DataHeader.MakeHeader((int)(Data.ToString().length()), EPacketType::ChatPacket);
-			//header
-			int SentBytes = SendAll(ServerSocket, (char*)&DataHeader, HeaderSize);
-			if (SentBytes <= 0)
-			{
-				cout << "C2S_Move header send fail." << endl;
-			}
-			//Data
-			SentBytes = SendAll(ServerSocket, Data.ToString().c_str(), (int)(Data.ToString().length()));
-			if (SentBytes <= 0)
-			{
-				cout << "C2S_Move Data send fail." << endl;
-			}
+			SendPacket(ServerSocket, Data, EPacketType::ChatPacket);
 		}
 
 	}
 
 	return 0;
+}
+
+void SendPacket(SOCKET ServerSocket,IPacket& Data, EPacketType Type)
+{
+	Header DataHeader;
+	DataHeader.MakeHeader((int)(Data.ToString().length()), Type);
+	//header
+	int SentBytes = SendAll(ServerSocket, (char*)&DataHeader, HeaderSize);
+	if (SentBytes <= 0)
+	{
+		cout << GetPacketTypeString(Type) <<" Header send fail." << endl;
+	}
+	//Data
+	SentBytes = SendAll(ServerSocket, Data.ToString().c_str(), (int)(Data.ToString().length()));
+	if (SentBytes <= 0)
+	{
+		cout <<GetPacketTypeString(Type) << " Data send fail." << endl;
+	}
 }
 
 unsigned WINAPI RanderThread(void* Argument)

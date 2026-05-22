@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "pch.h"
 
@@ -24,6 +24,8 @@ enum class EPacketType : unsigned short
 	Max
 };
 
+
+
 #pragma pack(push,1)
 struct Header
 {
@@ -44,7 +46,7 @@ struct Header
 };
 #pragma pack(pop)
 
-
+const char* GetPacketTypeString(EPacketType Type);
 
 constexpr unsigned short HeaderSize = sizeof(Header);
 

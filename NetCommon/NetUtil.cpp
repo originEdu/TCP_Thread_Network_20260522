@@ -27,3 +27,22 @@ int RecvAll(SOCKET ReceiverSocket, char* OutData, int Size)
 	return RecvBytes;
 }
 
+const char* GetPacketTypeString(EPacketType Type) {
+	switch (Type) {
+	case EPacketType::C2S_Login:
+		return "C2S_Login";
+	case EPacketType::S2C_Login:
+		return "S2C_Login";
+	case EPacketType::S2C_Spawn:
+		return "S2C_Spawn";
+	case EPacketType::S2C_Destroy:
+		return "S2C_Destroy";
+	case EPacketType::C2S_Move:
+		return "C2S_Move";
+	case EPacketType::S2C_Move:
+		return "S2C_Move";
+	case EPacketType::ChatPacket:
+		return "ChatPacket";
+	}
+	return "No EPacketType Macting Error";
+}
