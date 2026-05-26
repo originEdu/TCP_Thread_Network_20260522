@@ -11,6 +11,7 @@
 #include <conio.h>
 #include <mutex>
 #include "SDL.h"
+#include <queue>
 
 #pragma comment(lib, "ws2_32")
 #pragma comment(lib, "NetCommon")
@@ -45,16 +46,23 @@ SDL_Window* InitWindow(); //윈도우Init
 SDL_Renderer* CreateRender(SDL_Window* window); //랜더러 생성
 
 //렌더러 및 이벤트 -> 귀찮으니 전역으로
-SDL_Window* MyWindow = InitWindow();
-SDL_Renderer* MyRender = CreateRender(MyWindow);
+SDL_Window* MyWindow;
+SDL_Renderer* MyRender;
 SDL_Event event;
 
 //세션Lock
 std::mutex sessionLock;
+
+//queue
+std::queue<int> KeyBuffer;
+
 int main(int argc, char* argv[])
 {
 	srand((unsigned short)time(nullptr));
 	HideCursor();
+	SDL_Init(SDL_INIT_EVERYTHING);
+	MyWindow = InitWindow();
+	MyRender = CreateRender(MyWindow);
 
 	WSAData wsaData;
 
@@ -103,7 +111,6 @@ int main(int argc, char* argv[])
 				SDL_Keycode pressedKey = event.key.keysym.sym;
 
 				const char* KeyCode = SDL_GetKeyName(pressedKey);
-				
 				if (pressedKey == 'w' ||
 					pressedKey == 'a' ||
 					pressedKey == 's' ||
@@ -111,13 +118,17 @@ int main(int argc, char* argv[])
 				{
 					C2S_Move Data;
 					Data.ClientSocket = MyClientID;
+					//0번 유저 강제로 움직이게하기
+					//Session* FindSession = MySessionManager.GetSession(0);
+					//Data.ClientSocket = FindSession->ClientSocket;
+					
 					Data.Direction = *KeyCode;
 					SendPacket(ServerSocket, Data, EPacketType::C2S_Move);
 				}
 			}
 		}
 		
-		SDL_Delay(1);
+		SDL_Delay(10);
 	}
 
 	//blocking
@@ -170,20 +181,22 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer, const Header& InH
 		Insession.R = SpawnData.R;
 		Insession.G = SpawnData.G;
 		Insession.B = SpawnData.B;
+		sessionLock.lock();
 		MySessionManager.Add(Insession);
-		Render(MyRender);
+		sessionLock.unlock();
+		//Render(MyRender);
 	}
 	break;
 	case EPacketType::S2C_Move:
 	{
 		S2C_Move MoveData;
 		MoveData.Parse(InBuffer);
-		Session* FindSession = MySessionManager.GetSession(MoveData.ClientSocket);;
+		Session* FindSession = MySessionManager.GetSession(MoveData.ClientSocket);
 		FindSession->X = MoveData.X;
 		FindSession->Y = MoveData.Y;
 
 		//std::cout << MoveData.ToString() << std::endl;
-		Render(MyRender);
+		//Render(MyRender);
 	}
 	break;
 	case EPacketType::S2C_Destroy:
@@ -191,11 +204,11 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer, const Header& InH
 		S2C_Destroy DestroyPacket;
 		DestroyPacket.Parse(InBuffer);
 		std::cout << DestroyPacket.ClientSocket << std::endl;
-		sessionLock.lock(); //Rander쓰레드에 사용하고 있으므로 Lock
 		Session* FindSession = MySessionManager.GetSession(DestroyPacket.ClientSocket);
+		sessionLock.lock(); //Rander쓰레드에 사용할 수 있으므로 Lock
 		MySessionManager.Delete(*FindSession);
 		sessionLock.unlock();
-		Render(MyRender);
+		//Render(MyRender);
 	}
 	break;
 	}
@@ -309,7 +322,7 @@ unsigned WINAPI RanderThread(void* Argument)
 
 void Render(SDL_Renderer* MyRender)
 {
-	system("cls");
+	/*system("cls");
 	for (auto Player : MySessionManager.SessionList)
 	{
 		COORD Where;
@@ -317,7 +330,7 @@ void Render(SDL_Renderer* MyRender)
 		Where.Y = Player.Y;
 		SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), Where);
 		std::cout << (char)Player.Shape;
-	}
+	}*/
 }
 
 void HideCursor()

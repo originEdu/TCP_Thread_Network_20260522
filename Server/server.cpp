@@ -205,6 +205,7 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer, const Header& InH
 		{
 		C2S_Move MovePacket;
 		MovePacket.Parse(InBuffer);
+		cout << MovePacket.ToString() << endl;
 		Session* FindSession = MySessionManager.GetSession(MovePacket.ClientSocket);
 		switch (MovePacket.Direction)
 		{
