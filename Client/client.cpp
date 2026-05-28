@@ -123,14 +123,12 @@ int main(int argc, char* argv[])
 				flatbuffers::FlatBufferBuilder SendBuilder;
 				if (pressedKey == 'c')
 				{
-					UserPacket::FColor TempColor = UserPacket::FColor(rand() % 255, rand() % 255, rand() % 255);
-					auto C2S_ChangeColorData = UserPacket::CreateC2S_ChageColor(
+					auto C2S_ChangeColorData = UserPacket::CreateC2S_ChangeColor(
 						SendBuilder,
-						(uint16_t)MyClientID,
-						&TempColor);
+						(uint16_t)MyClientID);
 					auto UserPacketData = UserPacket::CreatePacketData(
 						SendBuilder,
-						UserPacket::PacketType_C2S_ChageColor,
+						UserPacket::PacketType_C2S_ChangeColor,
 						C2S_ChangeColorData.Union()
 					);
 					SendBuilder.Finish(UserPacketData);
@@ -220,7 +218,7 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 	break;
 	case UserPacket::PacketType_S2C_Move:
 	{
-		auto MoveData = UserPacketData->data_as_S2C_Spawn();
+		auto MoveData = UserPacketData->data_as_S2C_Move();
 
 		Session* FindSession = MySessionManager.GetSession((SOCKET)MoveData->client_socket_id());
 		sessionLock.lock();
@@ -238,9 +236,9 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 		sessionLock.unlock();
 	}
 	break;
-	case UserPacket::PacketType_S2C_ChageColor:
+	case UserPacket::PacketType_S2C_ChangeColor:
 	{
-		auto ChangeColorData = UserPacketData->data_as_S2C_ChageColor();
+		auto ChangeColorData = UserPacketData->data_as_S2C_ChangeColor();
 		Session* FindSession = MySessionManager.GetSession((SOCKET)ChangeColorData -> client_socket_id());
 		sessionLock.lock();
 		FindSession->R = ChangeColorData->color()->r();

@@ -45,7 +45,7 @@ int RecvAll(SOCKET ReceiverSocket, char* OutData)
 	};
 	PacketSize = ntohs(PacketSize);
 
-	RecvBytes = ::recv(ReceiverSocket, OutData, sizeof(OutData), MSG_WAITALL);
+	RecvBytes = ::recv(ReceiverSocket, OutData, PacketSize, MSG_WAITALL);
 	if (RecvBytes <= 0)
 	{
 		return RecvBytes;
