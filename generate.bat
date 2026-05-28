@@ -1,1 +1,0 @@
-flatc --cpp monster.fbs
