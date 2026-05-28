@@ -54,6 +54,6 @@ constexpr unsigned short HeaderSize = sizeof(Header);
 extern int RecvAll(SOCKET ReceiverSocket, char* OutData, int Size);
 extern int RecvAll(SOCKET ReceiverSocket, char* OutData);
 extern int SendAll(SOCKET ReceiverSocket, const char* InData, int Size);
-extern void SendAll(SOCKET ReceiverSocket, const flatbuffers::FlatBufferBuilder& Builder);
+extern int SendAll(SOCKET ReceiverSocket, const flatbuffers::FlatBufferBuilder& Builder);
 
 extern void DisconnectSocket(SOCKET DisconnectedSocket, fd_set* Sockets);

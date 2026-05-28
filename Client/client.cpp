@@ -55,9 +55,6 @@ SDL_Event event;
 //세션Lock
 std::mutex sessionLock;
 
-//queue
-std::queue<int> KeyBuffer;
-
 int main(int argc, char* argv[])
 {
 	srand((unsigned short)time(nullptr));
@@ -75,8 +72,8 @@ int main(int argc, char* argv[])
 	SOCKADDR_IN ServerSockAddr;
 	memset(&ServerSockAddr, 0, sizeof(ServerSockAddr));
 	ServerSockAddr.sin_family = AF_INET;
-	//ServerSockAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	ServerSockAddr.sin_addr.s_addr = inet_addr("192.168.0.95");
+	ServerSockAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	//ServerSockAddr.sin_addr.s_addr = inet_addr("192.168.0.95");
 	ServerSockAddr.sin_port = htons(35000);
 
 	connect(ServerSocket, (SOCKADDR*)&ServerSockAddr, sizeof(ServerSockAddr));
@@ -118,11 +115,9 @@ int main(int argc, char* argv[])
 			{
 				SDL_Keycode pressedKey = event.key.keysym.sym;
 
-				const char* KeyCode = SDL_GetKeyName(pressedKey);
-
-				flatbuffers::FlatBufferBuilder SendBuilder;
 				if (pressedKey == 'c')
 				{
+					flatbuffers::FlatBufferBuilder SendBuilder;
 					auto C2S_ChangeColorData = UserPacket::CreateC2S_ChangeColor(
 						SendBuilder,
 						(uint16_t)MyClientID);
@@ -133,20 +128,19 @@ int main(int argc, char* argv[])
 					);
 					SendBuilder.Finish(UserPacketData);
 					SendAll(ServerSocket, SendBuilder);
-					continue;
 				}
-				if (pressedKey == 'w' ||
+				else if (pressedKey == 'w' ||
 					pressedKey == 'a' ||
 					pressedKey == 's' ||
 					pressedKey == 'd')
 				{
+					flatbuffers::FlatBufferBuilder SendBuilder;
 					flatbuffers::Offset<UserPacket::C2S_Move> C2S_MoveData;
 					C2S_MoveData = UserPacket::CreateC2S_Move(
 						SendBuilder,
 						(uint16_t)MyClientID,
-						KeyBuffer.front()
+						(int8_t)pressedKey
 					);
-					KeyBuffer.pop();
 					
 					auto UserPacketData = UserPacket::CreatePacketData(
 						SendBuilder,

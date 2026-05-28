@@ -4,15 +4,26 @@
 
 #include <iostream>
 
-void SendAll(SOCKET ReceiverSocket, const flatbuffers::FlatBufferBuilder& Builder)
+int SendAll(SOCKET ReceiverSocket, const flatbuffers::FlatBufferBuilder& Builder)
 {
+	int SentBytes = 0;
 	int PacketSize = Builder.GetSize();
 	PacketSize = htons(PacketSize);
 	//Header
-	SendAll(ReceiverSocket, (char*)&PacketSize, 2);
+	SentBytes = SendAll(ReceiverSocket, (char*)&PacketSize, 2);
+	if (SentBytes <= 0)
+	{
+		std::cout << "NetUtil Header send Error" << std::endl;
+		return SentBytes;
+	}
 	//Data
-	SendAll(ReceiverSocket, (char*)Builder.GetBufferPointer(), Builder.GetSize());
-
+	SentBytes = SendAll(ReceiverSocket, (char*)Builder.GetBufferPointer(), Builder.GetSize());
+	if (SentBytes <= 0)
+	{
+		std::cout << "NetUtil Data send Error" << std::endl;
+		return SentBytes;
+	}
+	return SentBytes;
 }
 
 int SendAll(SOCKET ReceiverSocket, const char* Data, int Size)
