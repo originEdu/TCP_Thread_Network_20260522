@@ -3,6 +3,7 @@
 
 #include "ChatPacket.h"
 #include "NetUtil.h"
+#include "UserPacket_generated.h"
 
 #include <winsock2.h>
 #include <Windows.h>
@@ -18,6 +19,7 @@
 
 
 using namespace std;
+using namespace flatbuffers;
 
 char SendBuffer[1024] = { 0, };
 char RecvBuffer[1024] = { 0, };
@@ -32,7 +34,7 @@ SessionManager MySessionManager;
 //내 소켓 아이디
 SOCKET MyClientID;
 
-void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer, const Header& InHeader); // Recv받은 패킷에 따라 역할수행
+void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer); // Recv받은 패킷에 따라 역할수행
 unsigned WINAPI RecvThread(void* Argument); 
 unsigned WINAPI SendThread(void* Argument); 
 unsigned WINAPI RanderThread(void* Argument);
@@ -73,24 +75,30 @@ int main(int argc, char* argv[])
 	SOCKADDR_IN ServerSockAddr;
 	memset(&ServerSockAddr, 0, sizeof(ServerSockAddr));
 	ServerSockAddr.sin_family = AF_INET;
-	ServerSockAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	//ServerSockAddr.sin_addr.s_addr = inet_addr("192.168.0.95");
+	//ServerSockAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	ServerSockAddr.sin_addr.s_addr = inet_addr("192.168.0.95");
 	ServerSockAddr.sin_port = htons(35000);
 
 	connect(ServerSocket, (SOCKADDR*)&ServerSockAddr, sizeof(ServerSockAddr));
-
 	cout << "client connect" << endl;
 
-	C2S_Login LoginData;
-	LoginData.UserID = "Origin";
-	LoginData.HashKey = "base64incoding";
+	//메모리(Data) -> 바이트배열로 변환 (Serialize직렬화)
+	flatbuffers::FlatBufferBuilder SendBuilder;
+	auto C2S_LoginData = UserPacket::CreateC2S_Login(
+		SendBuilder,
+		SendBuilder.CreateString("Origin"),
+		SendBuilder.CreateString("base64abcdefg")
+	);
 
-	Header LoginHeader;
-	LoginHeader.MakeHeader(static_cast<unsigned short>(LoginData.ToString().length()), EPacketType::C2S_Login);
+	auto UserPacketData = UserPacket::CreatePacketData(
+		SendBuilder,
+		UserPacket::PacketType_C2S_Login,
+		C2S_LoginData.Union()
+	);
 
-	//Login 요청
-	SendAll(ServerSocket, (char*)&LoginHeader, HeaderSize);
-	SendAll(ServerSocket, LoginData.ToString().c_str(), (int)LoginData.ToString().length());
+	SendBuilder.Finish(UserPacketData);
+
+	SendAll(ServerSocket, SendBuilder);
 	cout << "Login 요청함" << endl;
 
 	HANDLE ThreadHandles[3] = { 0, };
@@ -111,19 +119,46 @@ int main(int argc, char* argv[])
 				SDL_Keycode pressedKey = event.key.keysym.sym;
 
 				const char* KeyCode = SDL_GetKeyName(pressedKey);
+
+				flatbuffers::FlatBufferBuilder SendBuilder;
+				if (pressedKey == 'c')
+				{
+					UserPacket::FColor TempColor = UserPacket::FColor(rand() % 255, rand() % 255, rand() % 255);
+					auto C2S_ChangeColorData = UserPacket::CreateC2S_ChageColor(
+						SendBuilder,
+						(uint16_t)MyClientID,
+						&TempColor);
+					auto UserPacketData = UserPacket::CreatePacketData(
+						SendBuilder,
+						UserPacket::PacketType_C2S_ChageColor,
+						C2S_ChangeColorData.Union()
+					);
+					SendBuilder.Finish(UserPacketData);
+					SendAll(ServerSocket, SendBuilder);
+					continue;
+				}
 				if (pressedKey == 'w' ||
 					pressedKey == 'a' ||
 					pressedKey == 's' ||
 					pressedKey == 'd')
 				{
-					C2S_Move Data;
-					Data.ClientSocket = MyClientID;
-					//0번 유저 강제로 움직이게하기
-					//Session* FindSession = MySessionManager.GetSession(0);
-					//Data.ClientSocket = FindSession->ClientSocket;
+					flatbuffers::Offset<UserPacket::C2S_Move> C2S_MoveData;
+					C2S_MoveData = UserPacket::CreateC2S_Move(
+						SendBuilder,
+						(uint16_t)MyClientID,
+						KeyBuffer.front()
+					);
+					KeyBuffer.pop();
 					
-					Data.Direction = *KeyCode;
-					SendPacket(ServerSocket, Data, EPacketType::C2S_Move);
+					auto UserPacketData = UserPacket::CreatePacketData(
+						SendBuilder,
+						UserPacket::PacketType_C2S_Move,
+						C2S_MoveData.Union()
+					);
+
+					SendBuilder.Finish(UserPacketData);
+
+					SendAll(ServerSocket, SendBuilder);
 				}
 			}
 		}
@@ -153,62 +188,65 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer, const Header& InHeader)
+void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 {
-	switch ((EPacketType)InHeader.PacketType)
+	auto UserPacketData = UserPacket::GetPacketData(InBuffer);
+
+	switch (UserPacketData->data_type())
 	{
-	case EPacketType::S2C_Login:
+	case UserPacket::PacketType_S2C_Login:
 	{
-		S2C_Login LoginPacket;
-		LoginPacket.Parse(InBuffer);
-		MyClientID = LoginPacket.ClientSocketID;
-		std::cout << LoginPacket.ClientSocketID << LoginPacket.Message << std::endl;
+		MyClientID = UserPacketData->data_as_S2C_Login()->client_socket_id();
 	}
 	break;
-	case EPacketType::S2C_Spawn:
+	case UserPacket::PacketType_S2C_Spawn:
 	{
-		S2C_Spawn SpawnData;
-		SpawnData.Parse(InBuffer);
-		std::cout << SpawnData.ToString().c_str() << std::endl;
+		auto SpawnData = UserPacketData->data_as_S2C_Spawn();
 
 		//다른 클라이언트 정보 가지고 있는 세션매니저에 자기정보 저장
 		//원래는 세션이 아니라 엑터 매니저
-		Session Insession;
-		Insession.ClientSocket = SpawnData.ClientSocket;
-		Insession.Shape = SpawnData.Shape;
-		Insession.X = SpawnData.X;
-		Insession.Y = SpawnData.Y;
-		Insession.R = SpawnData.R;
-		Insession.G = SpawnData.G;
-		Insession.B = SpawnData.B;
+		Session InSession;
+		InSession.ClientSocket = SpawnData->client_socket_id();
+		InSession.Shape = SpawnData->shape();
+		InSession.X = SpawnData->position()->x();
+		InSession.Y = SpawnData->position()->y();
+		InSession.R = SpawnData->color()->r();
+		InSession.G = SpawnData->color()->g();
+		InSession.B = SpawnData->color()->b();
 		sessionLock.lock();
-		MySessionManager.Add(Insession);
+		MySessionManager.Add(InSession);
 		sessionLock.unlock();
-		//Render(MyRender);
 	}
 	break;
-	case EPacketType::S2C_Move:
+	case UserPacket::PacketType_S2C_Move:
 	{
-		S2C_Move MoveData;
-		MoveData.Parse(InBuffer);
-		Session* FindSession = MySessionManager.GetSession(MoveData.ClientSocket);
-		FindSession->X = MoveData.X;
-		FindSession->Y = MoveData.Y;
+		auto MoveData = UserPacketData->data_as_S2C_Spawn();
 
-		//std::cout << MoveData.ToString() << std::endl;
-		//Render(MyRender);
+		Session* FindSession = MySessionManager.GetSession((SOCKET)MoveData->client_socket_id());
+		sessionLock.lock();
+		FindSession->X = MoveData->position()->x();
+		FindSession->Y = MoveData->position()->y();
+		sessionLock.unlock();
 	}
 	break;
-	case EPacketType::S2C_Destroy:
+	case UserPacket::PacketType_S2C_Destroy:
 	{
-		S2C_Destroy DestroyPacket;
-		DestroyPacket.Parse(InBuffer);
-		std::cout << DestroyPacket.ClientSocket << std::endl;
-		Session* FindSession = MySessionManager.GetSession(DestroyPacket.ClientSocket);
+		auto DestroyData = UserPacketData->data_as_S2C_Destroy();
+		Session* FindSession = MySessionManager.GetSession((SOCKET)DestroyData->client_socket_id());
 		sessionLock.lock(); //Rander쓰레드에 사용할 수 있으므로 Lock
 		MySessionManager.Delete(*FindSession);
 		sessionLock.unlock();
-		//Render(MyRender);
+	}
+	break;
+	case UserPacket::PacketType_S2C_ChageColor:
+	{
+		auto ChangeColorData = UserPacketData->data_as_S2C_ChageColor();
+		Session* FindSession = MySessionManager.GetSession((SOCKET)ChangeColorData -> client_socket_id());
+		sessionLock.lock();
+		FindSession->R = ChangeColorData->color()->r();
+		FindSession->G = ChangeColorData->color()->g();
+		FindSession->B = ChangeColorData->color()->b();
+		sessionLock.unlock();
 	}
 	break;
 	}
@@ -220,26 +258,14 @@ unsigned WINAPI RecvThread(void* Argument)
 
 	while (IsRecvThreadRunning)
 	{
-		Header HeaderData;
-		//header
-		int RecvBytes = RecvAll(ServerSocket, (char*)&HeaderData, sizeof(HeaderData));
+		int RecvBytes = RecvAll(ServerSocket, RecvBuffer);
 		if (RecvBytes <= 0)
 		{
-			cout << "recv fail " << endl;
-			break;
-		}
-		HeaderData.NetworkToHost();
-
-		memset(RecvBuffer, 0, sizeof(RecvBuffer));
-		//data JSON
-		RecvBytes = RecvAll(ServerSocket, RecvBuffer, HeaderData.PacketSize);
-		if (RecvBytes <= 0)
-		{
-			cout << "recv fail " << endl;
+			std::cout << "recv fail " << endl;
 			break;
 		}
 
-		ProcessPacket(ServerSocket, RecvBuffer, HeaderData);
+		ProcessPacket(ServerSocket, RecvBuffer);
 	
 	}
 	return 0;
@@ -252,29 +278,29 @@ unsigned WINAPI SendThread(void* Argument)
 
 	while (IsSendThreadRunning)
 	{
-		int KeyCode = _getch();
-		KeyCode = toupper(KeyCode);
-		if (KeyCode == 'W' ||
-			KeyCode == 'A' ||
-			KeyCode == 'S' ||
-			KeyCode == 'D')
-		{
-			C2S_Move Data;
-			Data.ClientSocket = MyClientID;
-			Data.Direction = (char)KeyCode;
-			SendPacket(ServerSocket, Data,EPacketType::C2S_Move);
-		}
-		else if (KeyCode == 13)
-		{
-			cin.getline(SendBuffer, sizeof(SendBuffer));
-			ChatPacket Data;
-			Data.UserID = "Test";
-			Data.Message = SendBuffer;
-			Data.Gold = 0;
-			std::string JSONString = Data.ToString();
-			SendPacket(ServerSocket, Data, EPacketType::ChatPacket);
-		}
-
+		//int KeyCode = _getch();
+		//KeyCode = toupper(KeyCode);
+		//if (KeyCode == 'W' ||
+		//	KeyCode == 'A' ||
+		//	KeyCode == 'S' ||
+		//	KeyCode == 'D')
+		//{
+		//	C2S_Move Data;
+		//	Data.ClientSocket = MyClientID;
+		//	Data.Direction = (char)KeyCode;
+		//	SendPacket(ServerSocket, Data,EPacketType::C2S_Move);
+		//}
+		//else if (KeyCode == 13)
+		//{
+		//	cin.getline(SendBuffer, sizeof(SendBuffer));
+		//	ChatPacket Data;
+		//	Data.UserID = "Test";
+		//	Data.Message = SendBuffer;
+		//	Data.Gold = 0;
+		//	std::string JSONString = Data.ToString();
+		//	SendPacket(ServerSocket, Data, EPacketType::ChatPacket);
+		//}
+		SDL_Delay(1000);
 	}
 
 	return 0;

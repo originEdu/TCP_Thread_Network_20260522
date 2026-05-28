@@ -42,11 +42,23 @@ table S2C_Move{
 	position:FVector2D;
 }
 
+table C2S_ChageColor{
+	client_socket_id:uint16;
+	color:FColor;
+}
+
+table S2C_ChageColor{
+	client_socket_id:uint16;
+	color:FColor;
+}
+
+
 union PacketType{
 	C2S_Login, S2C_Login,
 	C2S_Move, S2C_Move,
-				S2C_Spawn,
-				S2C_Destroy
+		S2C_Spawn,
+		S2C_Destroy,
+	C2S_ChageColor, S2C_ChageColor
 }
 
 table PacketData{

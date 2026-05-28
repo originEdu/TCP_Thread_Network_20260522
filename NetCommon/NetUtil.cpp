@@ -2,6 +2,19 @@
 
 #include "NetUtil.h"
 
+#include <iostream>
+
+void SendAll(SOCKET ReceiverSocket, const flatbuffers::FlatBufferBuilder& Builder)
+{
+	int PacketSize = Builder.GetSize();
+	PacketSize = htons(PacketSize);
+	//Header
+	SendAll(ReceiverSocket, (char*)&PacketSize, 2);
+	//Data
+	SendAll(ReceiverSocket, (char*)Builder.GetBufferPointer(), Builder.GetSize());
+
+}
+
 int SendAll(SOCKET ReceiverSocket, const char* Data, int Size)
 {
 	int TotalSendDataSize = 0;
@@ -21,9 +34,30 @@ int SendAll(SOCKET ReceiverSocket, const char* Data, int Size)
 	return WantSendDataSize;
 }
 
+int RecvAll(SOCKET ReceiverSocket, char* OutData)
+{
+
+	int PacketSize = 0;
+	int RecvBytes = ::recv(ReceiverSocket, (char*)&PacketSize, 2, MSG_WAITALL);
+	if(RecvBytes<=0)
+	{
+		return RecvBytes;
+	};
+	PacketSize = ntohs(PacketSize);
+
+	RecvBytes = ::recv(ReceiverSocket, OutData, sizeof(OutData), MSG_WAITALL);
+	if (RecvBytes <= 0)
+	{
+		return RecvBytes;
+	};
+
+	return RecvBytes;
+}
+
 int RecvAll(SOCKET ReceiverSocket, char* OutData, int Size)
 {
 	int RecvBytes = recv(ReceiverSocket, OutData, Size, MSG_WAITALL);
+
 	return RecvBytes;
 }
 

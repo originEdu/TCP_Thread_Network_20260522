@@ -37,6 +37,12 @@ struct C2S_MoveBuilder;
 struct S2C_Move;
 struct S2C_MoveBuilder;
 
+struct C2S_ChageColor;
+struct C2S_ChageColorBuilder;
+
+struct S2C_ChageColor;
+struct S2C_ChageColorBuilder;
+
 struct PacketData;
 struct PacketDataBuilder;
 
@@ -48,11 +54,13 @@ enum PacketType : uint8_t {
   PacketType_S2C_Move = 4,
   PacketType_S2C_Spawn = 5,
   PacketType_S2C_Destroy = 6,
+  PacketType_C2S_ChageColor = 7,
+  PacketType_S2C_ChageColor = 8,
   PacketType_MIN = PacketType_NONE,
-  PacketType_MAX = PacketType_S2C_Destroy
+  PacketType_MAX = PacketType_S2C_ChageColor
 };
 
-inline const PacketType (&EnumValuesPacketType())[7] {
+inline const PacketType (&EnumValuesPacketType())[9] {
   static const PacketType values[] = {
     PacketType_NONE,
     PacketType_C2S_Login,
@@ -60,13 +68,15 @@ inline const PacketType (&EnumValuesPacketType())[7] {
     PacketType_C2S_Move,
     PacketType_S2C_Move,
     PacketType_S2C_Spawn,
-    PacketType_S2C_Destroy
+    PacketType_S2C_Destroy,
+    PacketType_C2S_ChageColor,
+    PacketType_S2C_ChageColor
   };
   return values;
 }
 
 inline const char * const *EnumNamesPacketType() {
-  static const char * const names[8] = {
+  static const char * const names[10] = {
     "NONE",
     "C2S_Login",
     "S2C_Login",
@@ -74,13 +84,15 @@ inline const char * const *EnumNamesPacketType() {
     "S2C_Move",
     "S2C_Spawn",
     "S2C_Destroy",
+    "C2S_ChageColor",
+    "S2C_ChageColor",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNamePacketType(PacketType e) {
-  if (::flatbuffers::IsOutRange(e, PacketType_NONE, PacketType_S2C_Destroy)) return "";
+  if (::flatbuffers::IsOutRange(e, PacketType_NONE, PacketType_S2C_ChageColor)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesPacketType()[index];
 }
@@ -111,6 +123,14 @@ template<> struct PacketTypeTraits<UserPacket::S2C_Spawn> {
 
 template<> struct PacketTypeTraits<UserPacket::S2C_Destroy> {
   static const PacketType enum_value = PacketType_S2C_Destroy;
+};
+
+template<> struct PacketTypeTraits<UserPacket::C2S_ChageColor> {
+  static const PacketType enum_value = PacketType_C2S_ChageColor;
+};
+
+template<> struct PacketTypeTraits<UserPacket::S2C_ChageColor> {
+  static const PacketType enum_value = PacketType_S2C_ChageColor;
 };
 
 template <bool B = false>
@@ -518,6 +538,110 @@ inline ::flatbuffers::Offset<S2C_Move> CreateS2C_Move(
   return builder_.Finish();
 }
 
+struct C2S_ChageColor FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef C2S_ChageColorBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_CLIENT_SOCKET_ID = 4,
+    VT_COLOR = 6
+  };
+  uint16_t client_socket_id() const {
+    return GetField<uint16_t>(VT_CLIENT_SOCKET_ID, 0);
+  }
+  const UserPacket::FColor *color() const {
+    return GetStruct<const UserPacket::FColor *>(VT_COLOR);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<uint16_t>(verifier, VT_CLIENT_SOCKET_ID, 2) &&
+           VerifyField<UserPacket::FColor>(verifier, VT_COLOR, 1) &&
+           verifier.EndTable();
+  }
+};
+
+struct C2S_ChageColorBuilder {
+  typedef C2S_ChageColor Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_client_socket_id(uint16_t client_socket_id) {
+    fbb_.AddElement<uint16_t>(C2S_ChageColor::VT_CLIENT_SOCKET_ID, client_socket_id, 0);
+  }
+  void add_color(const UserPacket::FColor *color) {
+    fbb_.AddStruct(C2S_ChageColor::VT_COLOR, color);
+  }
+  explicit C2S_ChageColorBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<C2S_ChageColor> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<C2S_ChageColor>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<C2S_ChageColor> CreateC2S_ChageColor(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    uint16_t client_socket_id = 0,
+    const UserPacket::FColor *color = nullptr) {
+  C2S_ChageColorBuilder builder_(_fbb);
+  builder_.add_color(color);
+  builder_.add_client_socket_id(client_socket_id);
+  return builder_.Finish();
+}
+
+struct S2C_ChageColor FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef S2C_ChageColorBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_CLIENT_SOCKET_ID = 4,
+    VT_COLOR = 6
+  };
+  uint16_t client_socket_id() const {
+    return GetField<uint16_t>(VT_CLIENT_SOCKET_ID, 0);
+  }
+  const UserPacket::FColor *color() const {
+    return GetStruct<const UserPacket::FColor *>(VT_COLOR);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<uint16_t>(verifier, VT_CLIENT_SOCKET_ID, 2) &&
+           VerifyField<UserPacket::FColor>(verifier, VT_COLOR, 1) &&
+           verifier.EndTable();
+  }
+};
+
+struct S2C_ChageColorBuilder {
+  typedef S2C_ChageColor Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_client_socket_id(uint16_t client_socket_id) {
+    fbb_.AddElement<uint16_t>(S2C_ChageColor::VT_CLIENT_SOCKET_ID, client_socket_id, 0);
+  }
+  void add_color(const UserPacket::FColor *color) {
+    fbb_.AddStruct(S2C_ChageColor::VT_COLOR, color);
+  }
+  explicit S2C_ChageColorBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<S2C_ChageColor> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<S2C_ChageColor>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<S2C_ChageColor> CreateS2C_ChageColor(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    uint16_t client_socket_id = 0,
+    const UserPacket::FColor *color = nullptr) {
+  S2C_ChageColorBuilder builder_(_fbb);
+  builder_.add_color(color);
+  builder_.add_client_socket_id(client_socket_id);
+  return builder_.Finish();
+}
+
 struct PacketData FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef PacketDataBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
@@ -548,6 +672,12 @@ struct PacketData FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   }
   const UserPacket::S2C_Destroy *data_as_S2C_Destroy() const {
     return data_type() == UserPacket::PacketType_S2C_Destroy ? static_cast<const UserPacket::S2C_Destroy *>(data()) : nullptr;
+  }
+  const UserPacket::C2S_ChageColor *data_as_C2S_ChageColor() const {
+    return data_type() == UserPacket::PacketType_C2S_ChageColor ? static_cast<const UserPacket::C2S_ChageColor *>(data()) : nullptr;
+  }
+  const UserPacket::S2C_ChageColor *data_as_S2C_ChageColor() const {
+    return data_type() == UserPacket::PacketType_S2C_ChageColor ? static_cast<const UserPacket::S2C_ChageColor *>(data()) : nullptr;
   }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
@@ -581,6 +711,14 @@ template<> inline const UserPacket::S2C_Spawn *PacketData::data_as<UserPacket::S
 
 template<> inline const UserPacket::S2C_Destroy *PacketData::data_as<UserPacket::S2C_Destroy>() const {
   return data_as_S2C_Destroy();
+}
+
+template<> inline const UserPacket::C2S_ChageColor *PacketData::data_as<UserPacket::C2S_ChageColor>() const {
+  return data_as_C2S_ChageColor();
+}
+
+template<> inline const UserPacket::S2C_ChageColor *PacketData::data_as<UserPacket::S2C_ChageColor>() const {
+  return data_as_S2C_ChageColor();
 }
 
 struct PacketDataBuilder {
@@ -642,6 +780,14 @@ inline bool VerifyPacketType(::flatbuffers::VerifierTemplate<B> &verifier, const
     }
     case PacketType_S2C_Destroy: {
       auto ptr = reinterpret_cast<const UserPacket::S2C_Destroy *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case PacketType_C2S_ChageColor: {
+      auto ptr = reinterpret_cast<const UserPacket::C2S_ChageColor *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case PacketType_S2C_ChageColor: {
+      auto ptr = reinterpret_cast<const UserPacket::S2C_ChageColor *>(obj);
       return verifier.VerifyTable(ptr);
     }
     default: return true;
