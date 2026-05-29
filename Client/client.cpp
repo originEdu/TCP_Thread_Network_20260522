@@ -169,6 +169,7 @@ int main(int argc, char* argv[])
 
 	CloseHandle(ThreadHandles[0]);
 	CloseHandle(ThreadHandles[1]);
+	CloseHandle(ThreadHandles[2]);
 
 	WSACleanup();
 
@@ -263,6 +264,8 @@ unsigned WINAPI RecvThread(void* Argument)
 	return 0;
 }
 
+//콘솔용 인풋
+//SDL사용하면서 사용안함
 unsigned WINAPI SendThread(void* Argument)
 {
 	//책임은 사용하는 놈이 진다.
@@ -292,7 +295,6 @@ unsigned WINAPI SendThread(void* Argument)
 		//	std::string JSONString = Data.ToString();
 		//	SendPacket(ServerSocket, Data, EPacketType::ChatPacket);
 		//}
-		SDL_Delay(1000);
 	}
 
 	return 0;
