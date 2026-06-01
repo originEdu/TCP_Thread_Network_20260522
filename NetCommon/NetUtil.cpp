@@ -7,7 +7,7 @@
 int SendAll(SOCKET ReceiverSocket, const flatbuffers::FlatBufferBuilder& Builder)
 {
 	int SentBytes = 0;
-	int PacketSize = Builder.GetSize();
+	unsigned short PacketSize = Builder.GetSize();
 	PacketSize = htons(PacketSize);
 	//Header
 	SentBytes = SendAll(ReceiverSocket, (char*)&PacketSize, 2);
@@ -48,7 +48,7 @@ int SendAll(SOCKET ReceiverSocket, const char* Data, int Size)
 int RecvAll(SOCKET ReceiverSocket, char* OutData)
 {
 
-	int PacketSize = 0;
+	unsigned short PacketSize = 0;
 	int RecvBytes = ::recv(ReceiverSocket, (char*)&PacketSize, 2, MSG_WAITALL);
 	if(RecvBytes<=0)
 	{
@@ -86,8 +86,22 @@ const char* GetPacketTypeString(EPacketType Type) {
 		return "C2S_Move";
 	case EPacketType::S2C_Move:
 		return "S2C_Move";
-	case EPacketType::ChatPacket:
-		return "ChatPacket";
+	case EPacketType::C2S_Chat:
+		return "C2S_Chat";
+	case EPacketType::S2C_Chat:
+		return "S2C_Chat";
+	case EPacketType::C2S_ChangeColor:
+		return "C2S_ChangeColor";
+	case EPacketType::S2C_ChangeColor:
+		return "S2C_ChangeColor";
+	case EPacketType::C2S_SignUp:
+		return "C2S_SignUp";
+	case EPacketType::S2C_SignUp:
+		return "S2C_SignUp";
+	case EPacketType::C2S_LogOut:
+		return "C2S_LogOut";
+	case EPacketType::S2C_LogOut:
+		return "S2C_LogOut";
 	}
-	return "No EPacketType Macting Error";
+	return "No EPacketType Matcting Error";
 }

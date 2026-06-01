@@ -20,6 +20,7 @@ table C2S_Login {
 table S2C_Login {
 	client_socket_id : uint16;
 	message : string;
+	is_success: bool;
 }
 
 table S2C_Spawn {

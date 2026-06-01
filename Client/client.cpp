@@ -27,6 +27,7 @@ char RecvBuffer[1024] = { 0, };
 bool IsRecvThreadRunning = true;
 bool IsSendThreadRunning = true;
 bool IsRanderThreadRunning = true;
+bool ToggleLogin = true;
 
 //다른 클라 정보관리
 SessionManager MySessionManager;
@@ -58,6 +59,9 @@ SDL_Event event;
 //세션Lock
 std::mutex sessionLock;
 
+//유저 정보
+string userId, userPwd;
+
 int main(int argc, char* argv[])
 {
 	srand((unsigned short)time(nullptr));
@@ -82,34 +86,50 @@ int main(int argc, char* argv[])
 	connect(ServerSocket, (SOCKADDR*)&ServerSockAddr, sizeof(ServerSockAddr));
 	cout << "client connect" << endl;
 
-	
-	//메모리(Data) -> 바이트배열로 변환 (Serialize직렬화)
-	//flatbuffers::FlatBufferBuilder SendBuilder;
-	//auto C2S_LoginData = UserPacket::CreateC2S_Login(
-	//	SendBuilder,
-	//	SendBuilder.CreateString("Origin"),
-	//	SendBuilder.CreateString("bitbit43"),
-	//	SendBuilder.CreateString("base64abcdefg")
-	//);
-
-	//auto UserPacketData = UserPacket::CreatePacketData(
-	//	SendBuilder,
-	//	UserPacket::PacketType_C2S_Login,
-	//	C2S_LoginData.Union()
-	//);
-
-	//SendBuilder.Finish(UserPacketData);
-
-	//SendAll(ServerSocket, SendBuilder);
-	//cout << "Login 요청함" << endl;
-
 	HANDLE ThreadHandles[3] = { 0, };
 
 	//nonblocking, asynchrous
 	ThreadHandles[0] = (HANDLE)_beginthreadex(0, 0, RecvThread, &ServerSocket, /*CREATE_SUSPENDED*/0, 0);
-	ThreadHandles[1] = (HANDLE)_beginthreadex(0, 0, SendThread, &ServerSocket, /*CREATE_SUSPENDED*/0, 0);
+	//ThreadHandles[1] = (HANDLE)_beginthreadex(0, 0, SendThread, &ServerSocket, /*CREATE_SUSPENDED*/0, 0);
 	ThreadHandles[2] = (HANDLE)_beginthreadex(0, 0, RanderThread, MyRender, /*CREATE_SUSPENDED*/0, 0);
 
+	Work_LOOPS:
+	cout << "원하시는 작업의 숫자를 입력해주세요(ex 1)" << endl;
+	cout << "1.SignUp" << endl;
+	cout << "2.LogIn" << endl;
+	cout << "3.LogOut" << endl;
+	//작업 테스트
+	while(ToggleLogin)
+	{
+		if (_kbhit())
+		{
+			int KeyCode = _getch();
+			switch (KeyCode)
+			{
+			case '1':
+			{
+				SignUp(ServerSocket);
+			}
+			break;
+			case '2':
+			{
+				LogIn(ServerSocket);
+			}
+			break;
+			case '3':
+			{
+				LogOut(ServerSocket);
+			}
+			break;
+			default:
+				cout << "다시 입력해주세요" << endl;
+				break;
+			};
+		}
+	}
+
+	SDL_ShowWindow(MyWindow);
+	cout << "SDL 이벤트 시작" << endl;
 	//SDL 이벤트
 	while (IsRanderThreadRunning) {
 		while (SDL_PollEvent(&event)) {
@@ -195,6 +215,10 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 	case UserPacket::PacketType_S2C_Login:
 	{
 		MyClientID = UserPacketData->data_as_S2C_Login()->client_socket_id();
+		if (UserPacketData->data_as_S2C_Login()->is_success())
+		{
+			ToggleLogin = false;
+		}
 	}
 	break;
 	case UserPacket::PacketType_S2C_Spawn:
@@ -247,6 +271,24 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 		sessionLock.unlock();
 	}
 	break;
+	case UserPacket::PacketType_S2C_LogOut:
+	{
+		auto LogOutData = UserPacketData->data_as_S2C_LogOut();
+		cout << LogOutData->user_id() << " 로그아웃 성공 유무: " << LogOutData->is_success() << endl;
+	}
+	break;
+	case UserPacket::PacketType_S2C_SignUp:
+	{
+		auto SignUpData = UserPacketData->data_as_S2C_SignUp();
+		cout << SignUpData->user_id()->c_str() << " 회원가입 성공 유무: " << SignUpData->is_success() << endl;
+		if (SignUpData->is_success())
+		{
+			cout << "원하시는 작업의 숫자를 입력해주세요(ex 1)" << endl;
+			cout << "1.SignUp" << endl;
+			cout << "2.LogIn" << endl;
+		}
+	}
+	break;
 	}
 }
 
@@ -271,7 +313,7 @@ unsigned WINAPI RecvThread(void* Argument)
 
 void SignUp(SOCKET ServerSocket)
 {
-	string userId, userPwd, userName;
+	string userName;
 	cout << "아이디 입력: ";
 	cin >> userId;
 	cout << "비밀번호 입력: ";
@@ -282,9 +324,9 @@ void SignUp(SOCKET ServerSocket)
 	flatbuffers::FlatBufferBuilder SendBuilder;
 	auto C2S_SignUp_Data = UserPacket::CreateC2S_SignUp(
 		SendBuilder,
-		SendBuilder.CreateString(userId),
-		SendBuilder.CreateString(userPwd),
-		SendBuilder.CreateString(userName)
+		SendBuilder.CreateString(userId.c_str()),
+		SendBuilder.CreateString(userPwd.c_str()),
+		SendBuilder.CreateString(userName.c_str())
 	);
 	auto UserPacketData = UserPacket::CreatePacketData(
 		SendBuilder,
@@ -297,7 +339,6 @@ void SignUp(SOCKET ServerSocket)
 
 void LogIn(SOCKET ServerSocket)
 {
-	string userId, userPwd;
 	cout << "아이디 입력: ";
 	cin >> userId;
 	cout << "비밀번호 입력: ";
@@ -305,8 +346,8 @@ void LogIn(SOCKET ServerSocket)
 	flatbuffers::FlatBufferBuilder SendBuilder;
 	auto C2S_Login_Data = UserPacket::CreateC2S_Login(
 		SendBuilder,
-		SendBuilder.CreateString(userId),
-		SendBuilder.CreateString(userPwd),
+		SendBuilder.CreateString(userId.c_str()),
+		SendBuilder.CreateString(userPwd.c_str()),
 		SendBuilder.CreateString("base64abcdefg")
 	);
 	auto UserPacketData = UserPacket::CreatePacketData(
@@ -331,34 +372,6 @@ unsigned WINAPI SendThread(void* Argument)
 
 	while (IsSendThreadRunning)
 	{
-		cout << "원하시는 작업의 숫자를 입력해주세요(ex 1)" << endl;
-		cout << "1.SignUp" << endl;
-		cout << "2.LogIn" << endl;
-		cout << "3.LogOut" << endl;
-		int KeyCode = _getch();
-		switch(KeyCode)
-		{
-		case '1':
-		{
-			SignUp(ServerSocket);
-		}
-		break;
-		case '2':
-		{
-			LogIn(ServerSocket);
-		}
-		break;
-		case '3':
-		{
-			LogOut(ServerSocket);
-		}
-		break;
-		default:
-			cout << "다시 입력해주세요" << endl;
-			break;
-		};
-
-
 		//WASD로 움직이기 및 에코 채팅
 		//KeyCode = toupper(KeyCode);
 		//if (KeyCode == 'W' ||
@@ -457,7 +470,7 @@ SDL_Window* InitWindow()
 		SDL_WINDOWPOS_CENTERED,           // 창 시작 X 위치 (화면 중앙)
 		SDL_WINDOWPOS_CENTERED,           // 창 시작 Y 위치 (화면 중앙)
 		1000, 800,                       // 창 가로, 세로 크기
-		SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE              // 창을 바로 표시
+		SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE              // 창을 바로 표시
 	);
 	return window;
 }

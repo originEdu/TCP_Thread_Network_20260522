@@ -334,7 +334,8 @@ struct S2C_Login FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef S2C_LoginBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_CLIENT_SOCKET_ID = 4,
-    VT_MESSAGE = 6
+    VT_MESSAGE = 6,
+    VT_IS_SUCCESS = 8
   };
   uint16_t client_socket_id() const {
     return GetField<uint16_t>(VT_CLIENT_SOCKET_ID, 0);
@@ -342,12 +343,16 @@ struct S2C_Login FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const ::flatbuffers::String *message() const {
     return GetPointer<const ::flatbuffers::String *>(VT_MESSAGE);
   }
+  bool is_success() const {
+    return GetField<uint8_t>(VT_IS_SUCCESS, 0) != 0;
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint16_t>(verifier, VT_CLIENT_SOCKET_ID, 2) &&
            VerifyOffset(verifier, VT_MESSAGE) &&
            verifier.VerifyString(message()) &&
+           VerifyField<uint8_t>(verifier, VT_IS_SUCCESS, 1) &&
            verifier.EndTable();
   }
 };
@@ -361,6 +366,9 @@ struct S2C_LoginBuilder {
   }
   void add_message(::flatbuffers::Offset<::flatbuffers::String> message) {
     fbb_.AddOffset(S2C_Login::VT_MESSAGE, message);
+  }
+  void add_is_success(bool is_success) {
+    fbb_.AddElement<uint8_t>(S2C_Login::VT_IS_SUCCESS, static_cast<uint8_t>(is_success), 0);
   }
   explicit S2C_LoginBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
@@ -376,22 +384,26 @@ struct S2C_LoginBuilder {
 inline ::flatbuffers::Offset<S2C_Login> CreateS2C_Login(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     uint16_t client_socket_id = 0,
-    ::flatbuffers::Offset<::flatbuffers::String> message = 0) {
+    ::flatbuffers::Offset<::flatbuffers::String> message = 0,
+    bool is_success = false) {
   S2C_LoginBuilder builder_(_fbb);
   builder_.add_message(message);
   builder_.add_client_socket_id(client_socket_id);
+  builder_.add_is_success(is_success);
   return builder_.Finish();
 }
 
 inline ::flatbuffers::Offset<S2C_Login> CreateS2C_LoginDirect(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     uint16_t client_socket_id = 0,
-    const char *message = nullptr) {
+    const char *message = nullptr,
+    bool is_success = false) {
   auto message__ = message ? _fbb.CreateString(message) : 0;
   return UserPacket::CreateS2C_Login(
       _fbb,
       client_socket_id,
-      message__);
+      message__,
+      is_success);
 }
 
 struct S2C_Spawn FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {

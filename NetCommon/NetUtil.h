@@ -21,7 +21,14 @@ enum class EPacketType : unsigned short
 	S2C_Destroy,
 	C2S_Move,
 	S2C_Move,
-	ChatPacket,
+	C2S_Chat,
+	S2C_Chat,
+	C2S_ChangeColor,
+	S2C_ChangeColor,
+	C2S_SignUp,
+	S2C_SignUp,
+	C2S_LogOut,
+	S2C_LogOut,
 	Max
 };
 

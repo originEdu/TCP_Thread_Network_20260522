@@ -41,7 +41,10 @@ int main()
 	{
 		//DB연동 -> 나중에 함수로
 		MyDiver = get_driver_instance(); 
-		MyConnection = MyDiver->connect("tcp://127.0.0.1", "Origin", "bit05");
+		MyConnection = MyDiver->connect("tcp://127.0.0.1", "Origin", "bit05");		
+		Statement* stmt = MyConnection->createStatement();
+		stmt->execute("SET NAMES euckr;");
+		delete stmt; // 사용 후 바로 해제
 		MyConnection->setSchema("testdb");
 		cout << "DB 연동 완료" << endl;
 
@@ -151,15 +154,16 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 	case UserPacket::PacketType_C2S_Login:
 	{
 		auto LoginPacket = UserPacketData->data_as_C2S_Login();
-		cout << LoginPacket->user_id()->c_str() << " 로그인 시도" << endl;
-
-		//select로 DB에 유저 있는지 확인
-		SQLString Query = "SELECT user_id FROM testdb.user_info WHERE user_id=?;";
+		cout << LoginPacket->user_id()->c_str() << " 아이디로 로그인 시도" << endl;
+		cout << LoginPacket->user_pwd()->c_str() << " 비밀번호" << endl;
+		//select로 DB에 유저 있는지 확인 -> 로그인 되어있으면 다른 기기에서 중복 로그인 불가
+		SQLString Query = "SELECT user_id FROM testdb.user_info WHERE user_id=? and is_login =0 and user_pwd =sha2(?,512);";
 		MyPreparedStatement = MyConnection->prepareStatement(Query);
 		MyPreparedStatement->setString(1, LoginPacket->user_id()->c_str());
+		MyPreparedStatement->setString(2, LoginPacket->user_pwd()->c_str());
 		MyResultSet = MyPreparedStatement->executeQuery();
 		bool is_success = true;
-		if (MyResultSet->getRow() <= 0)
+		if (MyResultSet->next()==false)
 		{
 			cout << "C2S_Login SELECT Query fail." << endl;
 			is_success = false;
@@ -169,19 +173,40 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 		{
 			SQLString Query = "UPDATE testdb.user_info SET is_login = 1 WHERE user_id=?;";
 			MyPreparedStatement = MyConnection->prepareStatement(Query);
-			MyPreparedStatement->setString(1, LoginPacket->user_id()->c_str());
-			MyResultSet = MyPreparedStatement->executeQuery();
-			if (MyResultSet->getRow() <= 0)
+			MyPreparedStatement->setString(1, (SQLString)LoginPacket->user_id()->c_str());
+			int Affected_rows = MyPreparedStatement->executeUpdate();
+			if (Affected_rows <= 0)
 			{
 				cout << "C2S_Login UPDATE Query fail." << endl;
 				is_success = false;
 			}
 		}
 
-		//실패시 클라에게 메시지 보내는 부분은 생략
+		//실패시 클라에게 메시지 보내기
 		if (!is_success)
 		{
 			cout << LoginPacket->user_id()->c_str() <<" Login fail." << endl;
+			flatbuffers::FlatBufferBuilder SendBuilder;
+			auto S2C_Login_Data = UserPacket::CreateS2C_Login(
+				SendBuilder,
+				(uint16_t)ProcessSocket,
+				SendBuilder.CreateString("Welcome."),
+				is_success
+			);
+
+			auto UserPacketData = UserPacket::CreatePacketData(
+				SendBuilder,
+				UserPacket::PacketType_S2C_Login,
+				S2C_Login_Data.Union()
+			);
+
+			SendBuilder.Finish(UserPacketData);
+			int SentBytes = SendAll(ProcessSocket, SendBuilder);
+			if (SentBytes <= 0)
+			{
+				cout << "S2C_Login send fail." << endl;
+				return;
+			}
 			return;
 		}
 
@@ -204,7 +229,8 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 		auto S2C_Login_Data = UserPacket::CreateS2C_Login(
 			SendBuilder,
 			(uint16_t)ProcessSocket,
-			SendBuilder.CreateString("Welcome.")
+			SendBuilder.CreateString("Welcome."),
+			is_success
 		);
 
 		auto UserPacketData = UserPacket::CreatePacketData(
@@ -337,36 +363,30 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 		auto LogOutPacket = UserPacketData->data_as_C2S_LogOut();
 		cout << LogOutPacket->user_id()->c_str() << " 로그아웃 시도" << endl;
 		//select 후 있으면 로그아웃, 없으면 불가 반환
-		SQLString Query = "SELECT user_id FROM testdb.user_info WHERE user_id=?;";
-		MyPreparedStatement = MyConnection->prepareStatement(Query);
+		MyPreparedStatement = MyConnection->prepareStatement("CALL check_and_logout_user(?, ?, @result)");
+		//인자 바인딩
 		MyPreparedStatement->setString(1, LogOutPacket->user_id()->c_str());
+		MyPreparedStatement->setInt(2, 1);
+		//프로시저 실행
+		MyPreparedStatement->execute();
+		//세션 변수(@result)에 담긴 OUT 파라미터 값 조회
+		MyPreparedStatement = MyConnection->prepareStatement("SELECT @result AS is_success");
 		MyResultSet = MyPreparedStatement->executeQuery();
-		bool is_success = true;
-		if (MyResultSet->getRow() <= 0)
-		{
-			cout << "C2S_LogOut SELECT Query fail." << endl;
-			is_success = false;
+		//결과 확인
+		bool isSuccess = MyResultSet->getBoolean("is_success");
+		if (isSuccess == 1) {
+			cout << "성공: 로그인 상태가 정상적으로 검증되었고 로그아웃 되었습니다. (TRUE)" << endl;
 		}
-		//is_login값 1에서 0로 변경
-		if (is_success)
-		{
-			SQLString Query = "UPDATE testdb.user_info SET is_login = 0 WHERE user_id=?;";
-			MyPreparedStatement = MyConnection->prepareStatement(Query);
-			MyPreparedStatement->setString(1, LogOutPacket->user_id()->c_str());
-			MyResultSet = MyPreparedStatement->executeQuery();
-			if (MyResultSet->getRow() <= 0)
-			{
-				cout << "C2S_LogOut UPDATE Query fail." << endl;
-				is_success = false;
-			}
+		else {
+			cout << "실패: 조건이 맞지 않거나 이미 로그아웃된 사용자입니다. (FALSE)" << endl;
 		}
-		cout << LogOutPacket->user_id()->c_str() << " 로그아웃 성공실패 여부: " << is_success << endl;
+
 		//성공 여부 클라에게 보내기
 		flatbuffers::FlatBufferBuilder SendBuilder;
 		auto S2C_LogOut_Data = UserPacket::CreateS2C_LogOut(
 			SendBuilder,
 			SendBuilder.CreateString(LogOutPacket->user_id()->c_str()),
-			is_success
+			isSuccess
 		);
 		auto UserPacketData = UserPacket::CreatePacketData(
 			SendBuilder,
@@ -398,11 +418,10 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 		MyPreparedStatement->setString(1, UserID);
 		MyPreparedStatement->setString(2, Password);
 		MyPreparedStatement->setString(3, UserName);
-		MyResultSet = MyPreparedStatement->executeQuery();
-
+		int Affected_rows = MyPreparedStatement->executeUpdate();
 		//DB 저장 여부
 		bool is_success = true;
-		if (MyResultSet->getRow() <= 0)
+		if (Affected_rows <= 0)
 		{
 			cout << "C2S_SignUp INSERT Error" << endl;
 			is_success = false;
@@ -470,3 +489,4 @@ void DisconnectSocket(SOCKET DisconnectedSocket, fd_set* Sockets)
 	}
 
 }
+
