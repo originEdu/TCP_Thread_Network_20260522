@@ -49,6 +49,18 @@ struct C2S_ChangeColorBuilder;
 struct S2C_ChangeColor;
 struct S2C_ChangeColorBuilder;
 
+struct C2S_SignUp;
+struct C2S_SignUpBuilder;
+
+struct S2C_SignUp;
+struct S2C_SignUpBuilder;
+
+struct C2S_LogOut;
+struct C2S_LogOutBuilder;
+
+struct S2C_LogOut;
+struct S2C_LogOutBuilder;
+
 struct PacketData;
 struct PacketDataBuilder;
 
@@ -64,11 +76,15 @@ enum PacketType : uint8_t {
   PacketType_S2C_Chat = 8,
   PacketType_C2S_ChangeColor = 9,
   PacketType_S2C_ChangeColor = 10,
+  PacketType_C2S_SignUp = 11,
+  PacketType_S2C_SignUp = 12,
+  PacketType_C2S_LogOut = 13,
+  PacketType_S2C_LogOut = 14,
   PacketType_MIN = PacketType_NONE,
-  PacketType_MAX = PacketType_S2C_ChangeColor
+  PacketType_MAX = PacketType_S2C_LogOut
 };
 
-inline const PacketType (&EnumValuesPacketType())[11] {
+inline const PacketType (&EnumValuesPacketType())[15] {
   static const PacketType values[] = {
     PacketType_NONE,
     PacketType_C2S_Login,
@@ -80,13 +96,17 @@ inline const PacketType (&EnumValuesPacketType())[11] {
     PacketType_C2S_Chat,
     PacketType_S2C_Chat,
     PacketType_C2S_ChangeColor,
-    PacketType_S2C_ChangeColor
+    PacketType_S2C_ChangeColor,
+    PacketType_C2S_SignUp,
+    PacketType_S2C_SignUp,
+    PacketType_C2S_LogOut,
+    PacketType_S2C_LogOut
   };
   return values;
 }
 
 inline const char * const *EnumNamesPacketType() {
-  static const char * const names[12] = {
+  static const char * const names[16] = {
     "NONE",
     "C2S_Login",
     "S2C_Login",
@@ -98,13 +118,17 @@ inline const char * const *EnumNamesPacketType() {
     "S2C_Chat",
     "C2S_ChangeColor",
     "S2C_ChangeColor",
+    "C2S_SignUp",
+    "S2C_SignUp",
+    "C2S_LogOut",
+    "S2C_LogOut",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNamePacketType(PacketType e) {
-  if (::flatbuffers::IsOutRange(e, PacketType_NONE, PacketType_S2C_ChangeColor)) return "";
+  if (::flatbuffers::IsOutRange(e, PacketType_NONE, PacketType_S2C_LogOut)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesPacketType()[index];
 }
@@ -151,6 +175,22 @@ template<> struct PacketTypeTraits<UserPacket::C2S_ChangeColor> {
 
 template<> struct PacketTypeTraits<UserPacket::S2C_ChangeColor> {
   static const PacketType enum_value = PacketType_S2C_ChangeColor;
+};
+
+template<> struct PacketTypeTraits<UserPacket::C2S_SignUp> {
+  static const PacketType enum_value = PacketType_C2S_SignUp;
+};
+
+template<> struct PacketTypeTraits<UserPacket::S2C_SignUp> {
+  static const PacketType enum_value = PacketType_S2C_SignUp;
+};
+
+template<> struct PacketTypeTraits<UserPacket::C2S_LogOut> {
+  static const PacketType enum_value = PacketType_C2S_LogOut;
+};
+
+template<> struct PacketTypeTraits<UserPacket::S2C_LogOut> {
+  static const PacketType enum_value = PacketType_S2C_LogOut;
 };
 
 template <bool B = false>
@@ -214,10 +254,14 @@ struct C2S_Login FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef C2S_LoginBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_USER_ID = 4,
-    VT_HASH_KEY = 6
+    VT_USER_PWD = 6,
+    VT_HASH_KEY = 8
   };
   const ::flatbuffers::String *user_id() const {
     return GetPointer<const ::flatbuffers::String *>(VT_USER_ID);
+  }
+  const ::flatbuffers::String *user_pwd() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_USER_PWD);
   }
   const ::flatbuffers::String *hash_key() const {
     return GetPointer<const ::flatbuffers::String *>(VT_HASH_KEY);
@@ -227,6 +271,8 @@ struct C2S_Login FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_USER_ID) &&
            verifier.VerifyString(user_id()) &&
+           VerifyOffset(verifier, VT_USER_PWD) &&
+           verifier.VerifyString(user_pwd()) &&
            VerifyOffset(verifier, VT_HASH_KEY) &&
            verifier.VerifyString(hash_key()) &&
            verifier.EndTable();
@@ -239,6 +285,9 @@ struct C2S_LoginBuilder {
   ::flatbuffers::uoffset_t start_;
   void add_user_id(::flatbuffers::Offset<::flatbuffers::String> user_id) {
     fbb_.AddOffset(C2S_Login::VT_USER_ID, user_id);
+  }
+  void add_user_pwd(::flatbuffers::Offset<::flatbuffers::String> user_pwd) {
+    fbb_.AddOffset(C2S_Login::VT_USER_PWD, user_pwd);
   }
   void add_hash_key(::flatbuffers::Offset<::flatbuffers::String> hash_key) {
     fbb_.AddOffset(C2S_Login::VT_HASH_KEY, hash_key);
@@ -257,9 +306,11 @@ struct C2S_LoginBuilder {
 inline ::flatbuffers::Offset<C2S_Login> CreateC2S_Login(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     ::flatbuffers::Offset<::flatbuffers::String> user_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> user_pwd = 0,
     ::flatbuffers::Offset<::flatbuffers::String> hash_key = 0) {
   C2S_LoginBuilder builder_(_fbb);
   builder_.add_hash_key(hash_key);
+  builder_.add_user_pwd(user_pwd);
   builder_.add_user_id(user_id);
   return builder_.Finish();
 }
@@ -267,12 +318,15 @@ inline ::flatbuffers::Offset<C2S_Login> CreateC2S_Login(
 inline ::flatbuffers::Offset<C2S_Login> CreateC2S_LoginDirect(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     const char *user_id = nullptr,
+    const char *user_pwd = nullptr,
     const char *hash_key = nullptr) {
   auto user_id__ = user_id ? _fbb.CreateString(user_id) : 0;
+  auto user_pwd__ = user_pwd ? _fbb.CreateString(user_pwd) : 0;
   auto hash_key__ = hash_key ? _fbb.CreateString(hash_key) : 0;
   return UserPacket::CreateC2S_Login(
       _fbb,
       user_id__,
+      user_pwd__,
       hash_key__);
 }
 
@@ -808,6 +862,280 @@ inline ::flatbuffers::Offset<S2C_ChangeColor> CreateS2C_ChangeColor(
   return builder_.Finish();
 }
 
+struct C2S_SignUp FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef C2S_SignUpBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_USER_ID = 4,
+    VT_USER_PWD = 6,
+    VT_USER_NAME = 8
+  };
+  const ::flatbuffers::String *user_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_USER_ID);
+  }
+  const ::flatbuffers::String *user_pwd() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_USER_PWD);
+  }
+  const ::flatbuffers::String *user_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_USER_NAME);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_USER_ID) &&
+           verifier.VerifyString(user_id()) &&
+           VerifyOffset(verifier, VT_USER_PWD) &&
+           verifier.VerifyString(user_pwd()) &&
+           VerifyOffset(verifier, VT_USER_NAME) &&
+           verifier.VerifyString(user_name()) &&
+           verifier.EndTable();
+  }
+};
+
+struct C2S_SignUpBuilder {
+  typedef C2S_SignUp Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_user_id(::flatbuffers::Offset<::flatbuffers::String> user_id) {
+    fbb_.AddOffset(C2S_SignUp::VT_USER_ID, user_id);
+  }
+  void add_user_pwd(::flatbuffers::Offset<::flatbuffers::String> user_pwd) {
+    fbb_.AddOffset(C2S_SignUp::VT_USER_PWD, user_pwd);
+  }
+  void add_user_name(::flatbuffers::Offset<::flatbuffers::String> user_name) {
+    fbb_.AddOffset(C2S_SignUp::VT_USER_NAME, user_name);
+  }
+  explicit C2S_SignUpBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<C2S_SignUp> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<C2S_SignUp>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<C2S_SignUp> CreateC2S_SignUp(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> user_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> user_pwd = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> user_name = 0) {
+  C2S_SignUpBuilder builder_(_fbb);
+  builder_.add_user_name(user_name);
+  builder_.add_user_pwd(user_pwd);
+  builder_.add_user_id(user_id);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<C2S_SignUp> CreateC2S_SignUpDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *user_id = nullptr,
+    const char *user_pwd = nullptr,
+    const char *user_name = nullptr) {
+  auto user_id__ = user_id ? _fbb.CreateString(user_id) : 0;
+  auto user_pwd__ = user_pwd ? _fbb.CreateString(user_pwd) : 0;
+  auto user_name__ = user_name ? _fbb.CreateString(user_name) : 0;
+  return UserPacket::CreateC2S_SignUp(
+      _fbb,
+      user_id__,
+      user_pwd__,
+      user_name__);
+}
+
+struct S2C_SignUp FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef S2C_SignUpBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_USER_ID = 4,
+    VT_IS_SUCCESS = 6
+  };
+  const ::flatbuffers::String *user_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_USER_ID);
+  }
+  bool is_success() const {
+    return GetField<uint8_t>(VT_IS_SUCCESS, 0) != 0;
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_USER_ID) &&
+           verifier.VerifyString(user_id()) &&
+           VerifyField<uint8_t>(verifier, VT_IS_SUCCESS, 1) &&
+           verifier.EndTable();
+  }
+};
+
+struct S2C_SignUpBuilder {
+  typedef S2C_SignUp Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_user_id(::flatbuffers::Offset<::flatbuffers::String> user_id) {
+    fbb_.AddOffset(S2C_SignUp::VT_USER_ID, user_id);
+  }
+  void add_is_success(bool is_success) {
+    fbb_.AddElement<uint8_t>(S2C_SignUp::VT_IS_SUCCESS, static_cast<uint8_t>(is_success), 0);
+  }
+  explicit S2C_SignUpBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<S2C_SignUp> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<S2C_SignUp>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<S2C_SignUp> CreateS2C_SignUp(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> user_id = 0,
+    bool is_success = false) {
+  S2C_SignUpBuilder builder_(_fbb);
+  builder_.add_user_id(user_id);
+  builder_.add_is_success(is_success);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<S2C_SignUp> CreateS2C_SignUpDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *user_id = nullptr,
+    bool is_success = false) {
+  auto user_id__ = user_id ? _fbb.CreateString(user_id) : 0;
+  return UserPacket::CreateS2C_SignUp(
+      _fbb,
+      user_id__,
+      is_success);
+}
+
+struct C2S_LogOut FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef C2S_LogOutBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_USER_ID = 4,
+    VT_USER_NAME = 6
+  };
+  const ::flatbuffers::String *user_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_USER_ID);
+  }
+  const ::flatbuffers::String *user_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_USER_NAME);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_USER_ID) &&
+           verifier.VerifyString(user_id()) &&
+           VerifyOffset(verifier, VT_USER_NAME) &&
+           verifier.VerifyString(user_name()) &&
+           verifier.EndTable();
+  }
+};
+
+struct C2S_LogOutBuilder {
+  typedef C2S_LogOut Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_user_id(::flatbuffers::Offset<::flatbuffers::String> user_id) {
+    fbb_.AddOffset(C2S_LogOut::VT_USER_ID, user_id);
+  }
+  void add_user_name(::flatbuffers::Offset<::flatbuffers::String> user_name) {
+    fbb_.AddOffset(C2S_LogOut::VT_USER_NAME, user_name);
+  }
+  explicit C2S_LogOutBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<C2S_LogOut> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<C2S_LogOut>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<C2S_LogOut> CreateC2S_LogOut(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> user_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> user_name = 0) {
+  C2S_LogOutBuilder builder_(_fbb);
+  builder_.add_user_name(user_name);
+  builder_.add_user_id(user_id);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<C2S_LogOut> CreateC2S_LogOutDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *user_id = nullptr,
+    const char *user_name = nullptr) {
+  auto user_id__ = user_id ? _fbb.CreateString(user_id) : 0;
+  auto user_name__ = user_name ? _fbb.CreateString(user_name) : 0;
+  return UserPacket::CreateC2S_LogOut(
+      _fbb,
+      user_id__,
+      user_name__);
+}
+
+struct S2C_LogOut FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef S2C_LogOutBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_USER_ID = 4,
+    VT_IS_SUCCESS = 6
+  };
+  const ::flatbuffers::String *user_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_USER_ID);
+  }
+  bool is_success() const {
+    return GetField<uint8_t>(VT_IS_SUCCESS, 0) != 0;
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_USER_ID) &&
+           verifier.VerifyString(user_id()) &&
+           VerifyField<uint8_t>(verifier, VT_IS_SUCCESS, 1) &&
+           verifier.EndTable();
+  }
+};
+
+struct S2C_LogOutBuilder {
+  typedef S2C_LogOut Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_user_id(::flatbuffers::Offset<::flatbuffers::String> user_id) {
+    fbb_.AddOffset(S2C_LogOut::VT_USER_ID, user_id);
+  }
+  void add_is_success(bool is_success) {
+    fbb_.AddElement<uint8_t>(S2C_LogOut::VT_IS_SUCCESS, static_cast<uint8_t>(is_success), 0);
+  }
+  explicit S2C_LogOutBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<S2C_LogOut> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<S2C_LogOut>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<S2C_LogOut> CreateS2C_LogOut(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> user_id = 0,
+    bool is_success = false) {
+  S2C_LogOutBuilder builder_(_fbb);
+  builder_.add_user_id(user_id);
+  builder_.add_is_success(is_success);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<S2C_LogOut> CreateS2C_LogOutDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *user_id = nullptr,
+    bool is_success = false) {
+  auto user_id__ = user_id ? _fbb.CreateString(user_id) : 0;
+  return UserPacket::CreateS2C_LogOut(
+      _fbb,
+      user_id__,
+      is_success);
+}
+
 struct PacketData FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef PacketDataBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
@@ -850,6 +1178,18 @@ struct PacketData FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   }
   const UserPacket::S2C_ChangeColor *data_as_S2C_ChangeColor() const {
     return data_type() == UserPacket::PacketType_S2C_ChangeColor ? static_cast<const UserPacket::S2C_ChangeColor *>(data()) : nullptr;
+  }
+  const UserPacket::C2S_SignUp *data_as_C2S_SignUp() const {
+    return data_type() == UserPacket::PacketType_C2S_SignUp ? static_cast<const UserPacket::C2S_SignUp *>(data()) : nullptr;
+  }
+  const UserPacket::S2C_SignUp *data_as_S2C_SignUp() const {
+    return data_type() == UserPacket::PacketType_S2C_SignUp ? static_cast<const UserPacket::S2C_SignUp *>(data()) : nullptr;
+  }
+  const UserPacket::C2S_LogOut *data_as_C2S_LogOut() const {
+    return data_type() == UserPacket::PacketType_C2S_LogOut ? static_cast<const UserPacket::C2S_LogOut *>(data()) : nullptr;
+  }
+  const UserPacket::S2C_LogOut *data_as_S2C_LogOut() const {
+    return data_type() == UserPacket::PacketType_S2C_LogOut ? static_cast<const UserPacket::S2C_LogOut *>(data()) : nullptr;
   }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
@@ -899,6 +1239,22 @@ template<> inline const UserPacket::C2S_ChangeColor *PacketData::data_as<UserPac
 
 template<> inline const UserPacket::S2C_ChangeColor *PacketData::data_as<UserPacket::S2C_ChangeColor>() const {
   return data_as_S2C_ChangeColor();
+}
+
+template<> inline const UserPacket::C2S_SignUp *PacketData::data_as<UserPacket::C2S_SignUp>() const {
+  return data_as_C2S_SignUp();
+}
+
+template<> inline const UserPacket::S2C_SignUp *PacketData::data_as<UserPacket::S2C_SignUp>() const {
+  return data_as_S2C_SignUp();
+}
+
+template<> inline const UserPacket::C2S_LogOut *PacketData::data_as<UserPacket::C2S_LogOut>() const {
+  return data_as_C2S_LogOut();
+}
+
+template<> inline const UserPacket::S2C_LogOut *PacketData::data_as<UserPacket::S2C_LogOut>() const {
+  return data_as_S2C_LogOut();
 }
 
 struct PacketDataBuilder {
@@ -976,6 +1332,22 @@ inline bool VerifyPacketType(::flatbuffers::VerifierTemplate<B> &verifier, const
     }
     case PacketType_S2C_ChangeColor: {
       auto ptr = reinterpret_cast<const UserPacket::S2C_ChangeColor *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case PacketType_C2S_SignUp: {
+      auto ptr = reinterpret_cast<const UserPacket::C2S_SignUp *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case PacketType_S2C_SignUp: {
+      auto ptr = reinterpret_cast<const UserPacket::S2C_SignUp *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case PacketType_C2S_LogOut: {
+      auto ptr = reinterpret_cast<const UserPacket::C2S_LogOut *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case PacketType_S2C_LogOut: {
+      auto ptr = reinterpret_cast<const UserPacket::S2C_LogOut *>(obj);
       return verifier.VerifyTable(ptr);
     }
     default: return true;
