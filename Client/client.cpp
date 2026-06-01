@@ -41,8 +41,11 @@ unsigned WINAPI RanderThread(void* Argument);
 
 void SendPacket(SOCKET ServerSocket, IPacket& Data, EPacketType Type);
 
-void Render(SDL_Renderer* MyRender); //랜더 함수
+void Render(); //콘솔용
 void HideCursor(); //커서 숨기기 함수
+void SignUp(SOCKET ServerSocket);
+void LogIn(SOCKET ServerSocket);
+void LogOut(SOCKET ServerSocket);
 
 SDL_Window* InitWindow(); //윈도우Init
 SDL_Renderer* CreateRender(SDL_Window* window); //랜더러 생성
@@ -79,24 +82,26 @@ int main(int argc, char* argv[])
 	connect(ServerSocket, (SOCKADDR*)&ServerSockAddr, sizeof(ServerSockAddr));
 	cout << "client connect" << endl;
 
+	
 	//메모리(Data) -> 바이트배열로 변환 (Serialize직렬화)
-	flatbuffers::FlatBufferBuilder SendBuilder;
-	auto C2S_LoginData = UserPacket::CreateC2S_Login(
-		SendBuilder,
-		SendBuilder.CreateString("Origin"),
-		SendBuilder.CreateString("base64abcdefg")
-	);
+	//flatbuffers::FlatBufferBuilder SendBuilder;
+	//auto C2S_LoginData = UserPacket::CreateC2S_Login(
+	//	SendBuilder,
+	//	SendBuilder.CreateString("Origin"),
+	//	SendBuilder.CreateString("bitbit43"),
+	//	SendBuilder.CreateString("base64abcdefg")
+	//);
 
-	auto UserPacketData = UserPacket::CreatePacketData(
-		SendBuilder,
-		UserPacket::PacketType_C2S_Login,
-		C2S_LoginData.Union()
-	);
+	//auto UserPacketData = UserPacket::CreatePacketData(
+	//	SendBuilder,
+	//	UserPacket::PacketType_C2S_Login,
+	//	C2S_LoginData.Union()
+	//);
 
-	SendBuilder.Finish(UserPacketData);
+	//SendBuilder.Finish(UserPacketData);
 
-	SendAll(ServerSocket, SendBuilder);
-	cout << "Login 요청함" << endl;
+	//SendAll(ServerSocket, SendBuilder);
+	//cout << "Login 요청함" << endl;
 
 	HANDLE ThreadHandles[3] = { 0, };
 
@@ -264,6 +269,59 @@ unsigned WINAPI RecvThread(void* Argument)
 	return 0;
 }
 
+void SignUp(SOCKET ServerSocket)
+{
+	string userId, userPwd, userName;
+	cout << "아이디 입력: ";
+	cin >> userId;
+	cout << "비밀번호 입력: ";
+	cin >> userPwd;
+	cout << "이름 입력: ";
+	cin >> userName;
+
+	flatbuffers::FlatBufferBuilder SendBuilder;
+	auto C2S_SignUp_Data = UserPacket::CreateC2S_SignUp(
+		SendBuilder,
+		SendBuilder.CreateString(userId),
+		SendBuilder.CreateString(userPwd),
+		SendBuilder.CreateString(userName)
+	);
+	auto UserPacketData = UserPacket::CreatePacketData(
+		SendBuilder,
+		UserPacket::PacketType_C2S_SignUp,
+		C2S_SignUp_Data.Union()
+	);
+	SendBuilder.Finish(UserPacketData);
+	SendAll(ServerSocket, SendBuilder);
+};
+
+void LogIn(SOCKET ServerSocket)
+{
+	string userId, userPwd;
+	cout << "아이디 입력: ";
+	cin >> userId;
+	cout << "비밀번호 입력: ";
+	cin >> userPwd;
+	flatbuffers::FlatBufferBuilder SendBuilder;
+	auto C2S_Login_Data = UserPacket::CreateC2S_Login(
+		SendBuilder,
+		SendBuilder.CreateString(userId),
+		SendBuilder.CreateString(userPwd),
+		SendBuilder.CreateString("base64abcdefg")
+	);
+	auto UserPacketData = UserPacket::CreatePacketData(
+		SendBuilder,
+		UserPacket::PacketType_C2S_Login,
+		C2S_Login_Data.Union()
+	);
+	SendBuilder.Finish(UserPacketData);
+	SendAll(ServerSocket, SendBuilder);
+};
+
+void LogOut(SOCKET ServerSocket)
+{
+};
+
 //콘솔용 인풋
 //SDL사용하면서 사용안함
 unsigned WINAPI SendThread(void* Argument)
@@ -273,7 +331,35 @@ unsigned WINAPI SendThread(void* Argument)
 
 	while (IsSendThreadRunning)
 	{
-		//int KeyCode = _getch();
+		cout << "원하시는 작업의 숫자를 입력해주세요(ex 1)" << endl;
+		cout << "1.SignUp" << endl;
+		cout << "2.LogIn" << endl;
+		cout << "3.LogOut" << endl;
+		int KeyCode = _getch();
+		switch(KeyCode)
+		{
+		case '1':
+		{
+			SignUp(ServerSocket);
+		}
+		break;
+		case '2':
+		{
+			LogIn(ServerSocket);
+		}
+		break;
+		case '3':
+		{
+			LogOut(ServerSocket);
+		}
+		break;
+		default:
+			cout << "다시 입력해주세요" << endl;
+			break;
+		};
+
+
+		//WASD로 움직이기 및 에코 채팅
 		//KeyCode = toupper(KeyCode);
 		//if (KeyCode == 'W' ||
 		//	KeyCode == 'A' ||
@@ -295,6 +381,7 @@ unsigned WINAPI SendThread(void* Argument)
 		//	std::string JSONString = Data.ToString();
 		//	SendPacket(ServerSocket, Data, EPacketType::ChatPacket);
 		//}
+		//Rend();
 	}
 
 	return 0;
@@ -340,7 +427,7 @@ unsigned WINAPI RanderThread(void* Argument)
 }
 
 
-void Render(SDL_Renderer* MyRender)
+void Render()
 {
 	/*system("cls");
 	for (auto Player : MySessionManager.SessionList)
