@@ -155,7 +155,6 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 	{
 		auto LoginPacket = UserPacketData->data_as_C2S_Login();
 		cout << LoginPacket->user_id()->c_str() << " 아이디로 로그인 시도" << endl;
-		cout << LoginPacket->user_pwd()->c_str() << " 비밀번호" << endl;
 		//select로 DB에 유저 있는지 확인 -> 로그인 되어있으면 다른 기기에서 중복 로그인 불가
 		SQLString Query = "SELECT user_id FROM testdb.user_info WHERE user_id=? and is_login =0 and user_pwd =sha2(?,512);";
 		MyPreparedStatement = MyConnection->prepareStatement(Query);
@@ -190,7 +189,7 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 			auto S2C_Login_Data = UserPacket::CreateS2C_Login(
 				SendBuilder,
 				(uint16_t)ProcessSocket,
-				SendBuilder.CreateString("Welcome."),
+				SendBuilder.CreateString("로그인 실패"),
 				is_success
 			);
 
@@ -229,7 +228,7 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 		auto S2C_Login_Data = UserPacket::CreateS2C_Login(
 			SendBuilder,
 			(uint16_t)ProcessSocket,
-			SendBuilder.CreateString("Welcome."),
+			SendBuilder.CreateString("로그인 성공"),
 			is_success
 		);
 
@@ -400,7 +399,6 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 			cout << "S2C_LogOut send fail." << endl;
 			return;
 		}
-
 	}
 	break;
 	case UserPacket::PacketType_C2S_SignUp:
