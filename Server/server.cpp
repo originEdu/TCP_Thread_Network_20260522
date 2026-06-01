@@ -5,11 +5,21 @@
 #include <winsock2.h>
 #include <iostream>
 
-
 #pragma comment(lib, "ws2_32")
 #pragma comment(lib, "NetCommon")
 
+//mysql cpp connect 라이브러리
+#include "jdbc/mysql_connection.h"
+#include "jdbc/cppconn/driver.h"
+#include "jdbc/cppconn/exception.h"
+#include "jdbc/cppconn/resultset.h"
+#include "jdbc/cppconn/statement.h"
+#include "jdbc/cppconn/prepared_statement.h"
+
+#pragma comment(lib,"debug/mysqlcppconn")
+
 using namespace std;
+using namespace sql;
 
 char Buffer[1024] = { 0, };
 
@@ -21,93 +31,109 @@ void DisconnectSocket(SOCKET DisconnectedSocket, fd_set* Sockets);
 //blocking, synchrous, multiplexing(polling)
 int main()
 {
-	cout << "server start" << endl;
-
-	WSAData wsaData;
-
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-	SOCKET ListenSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	SOCKADDR_IN ListenSockAddr;
-	memset(&ListenSockAddr, 0, sizeof(ListenSockAddr));
-	ListenSockAddr.sin_family = AF_INET;
-	ListenSockAddr.sin_addr.s_addr = INADDR_ANY;
-	ListenSockAddr.sin_port = htons(35000);
-
-	//already use port 이미 포트 사용중
-	::bind(ListenSocket, (SOCKADDR*)&ListenSockAddr, sizeof(ListenSockAddr));
-
-	listen(ListenSocket, SOMAXCONN);
-
-
-
-	//blocking, synchronous(TimeOut)
-	TIMEVAL TimeOut;
-	TimeOut.tv_sec = 0;
-	TimeOut.tv_usec = 500000;
-
-	fd_set ReadSockets;
-	fd_set CopyReadSockets;
-
-	FD_ZERO(&ReadSockets);
-	FD_SET(ListenSocket, &ReadSockets);
-
-	while (true)
+	try
 	{
-		CopyReadSockets = ReadSockets;
+		//DB연동 -> 나중에 함수로
+		Driver* MyDiver; 
+		Connection* MyConnection; 
+		ResultSet* MyResultSet; 
+		PreparedStatement* MyPreparedStatement; 
 
-		//0.5초씩 blocking
-		int ChangeCount = select(0, &CopyReadSockets, 0, 0, &TimeOut);
+		MyDiver = get_driver_instance(); 
+		MyConnection = MyDiver->connect("tcp://127.0.0.1", "Origin", "bit05");
+		MyConnection->setSchema("testdb");
+		
+		cout << "DB 연동 완료" << endl;
+		cout << "server start" << endl;
 
-		if (ChangeCount <= 0)
+		WSAData wsaData;
+
+		WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+		SOCKET ListenSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+		SOCKADDR_IN ListenSockAddr;
+		memset(&ListenSockAddr, 0, sizeof(ListenSockAddr));
+		ListenSockAddr.sin_family = AF_INET;
+		ListenSockAddr.sin_addr.s_addr = INADDR_ANY;
+		ListenSockAddr.sin_port = htons(35000);
+
+		//already use port 이미 포트 사용중
+		::bind(ListenSocket, (SOCKADDR*)&ListenSockAddr, sizeof(ListenSockAddr));
+
+		listen(ListenSocket, SOMAXCONN);
+
+		//blocking, synchronous(TimeOut)
+		TIMEVAL TimeOut;
+		TimeOut.tv_sec = 0;
+		TimeOut.tv_usec = 500000;
+
+		fd_set ReadSockets;
+		fd_set CopyReadSockets;
+
+		FD_ZERO(&ReadSockets);
+		FD_SET(ListenSocket, &ReadSockets);
+
+		while (true)
 		{
-			//Server Work
-			//0.5초한번 서버 작업을 하는거
-			continue;
-		}
+			CopyReadSockets = ReadSockets;
 
-		//몬가 자료 있다.
-		for (int i = 0; i < (int)ReadSockets.fd_count; ++i)
-		{
-			if (FD_ISSET(ReadSockets.fd_array[i], &CopyReadSockets))
+			//0.5초씩 blocking
+			int ChangeCount = select(0, &CopyReadSockets, 0, 0, &TimeOut);
+
+			if (ChangeCount <= 0)
 			{
-				if (ReadSockets.fd_array[i] == ListenSocket)
+				//Server Work
+				//0.5초한번 서버 작업을 하는거
+				continue;
+			}
+
+			//몬가 자료 있다.
+			for (int i = 0; i < (int)ReadSockets.fd_count; ++i)
+			{
+				if (FD_ISSET(ReadSockets.fd_array[i], &CopyReadSockets))
 				{
-					//connect process
-					SOCKADDR_IN ClientSockAddr;
-					memset(&ClientSockAddr, 0, sizeof(ClientSockAddr));
-					int ClientSockSockLength = sizeof(ClientSockAddr);
-
-					//blocking, synchronous
-					SOCKET ClientSocket = accept(ListenSocket, (SOCKADDR*)&ClientSockAddr, &ClientSockSockLength);
-
-					cout << "connect client " << inet_ntoa(ClientSockAddr.sin_addr) << endl;
-
-					FD_SET(ClientSocket, &ReadSockets);
-				}
-				else
-				{
-					//Data Receive
-					int RecvBytes = RecvAll(ReadSockets.fd_array[i], Buffer);
-					if (RecvBytes <= 0)
+					if (ReadSockets.fd_array[i] == ListenSocket)
 					{
-						cout << "data recv fail " << endl;
-						DisconnectSocket(ReadSockets.fd_array[i], &ReadSockets);
-						continue;
+						//connect process
+						SOCKADDR_IN ClientSockAddr;
+						memset(&ClientSockAddr, 0, sizeof(ClientSockAddr));
+						int ClientSockSockLength = sizeof(ClientSockAddr);
+
+						//blocking, synchronous
+						SOCKET ClientSocket = accept(ListenSocket, (SOCKADDR*)&ClientSockAddr, &ClientSockSockLength);
+
+						cout << "connect client " << inet_ntoa(ClientSockAddr.sin_addr) << endl;
+
+						FD_SET(ClientSocket, &ReadSockets);
 					}
 					else
 					{
-						ProcessPacket(ReadSockets.fd_array[i], Buffer);
+						//Data Receive
+						int RecvBytes = RecvAll(ReadSockets.fd_array[i], Buffer);
+						if (RecvBytes <= 0)
+						{
+							cout << "data recv fail " << endl;
+							DisconnectSocket(ReadSockets.fd_array[i], &ReadSockets);
+							continue;
+						}
+						else
+						{
+							ProcessPacket(ReadSockets.fd_array[i], Buffer);
+						}
 					}
 				}
 			}
 		}
+
+		closesocket(ListenSocket);
+		WSACleanup();
 	}
-
-	closesocket(ListenSocket);
-	WSACleanup();
-
+	catch (SQLException Exception)
+	{
+		cout << Exception.what() << endl;
+		cout << Exception.getSQLState() << endl;
+	}
 	return 0;
 }
 
@@ -192,7 +218,7 @@ void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 		auto MovePacket = UserPacketData->data_as_C2S_Move();
 		Session* FindSession = MySessionManager.GetSession((SOCKET)MovePacket->client_socket_id());
 		//cout << MovePacket->direction() << endl;
-		switch (MovePacket-> direction())
+		switch (MovePacket->direction())
 		{
 		case 'w':
 			FindSession->Y--;
