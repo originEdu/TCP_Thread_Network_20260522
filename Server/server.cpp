@@ -477,8 +477,12 @@ void DisconnectSocket(SOCKET DisconnectedSocket, fd_set* Sockets)
 
 	SendBuilder.Finish(UserPacketData);
 	Session* FindSession = MySessionManager.GetSession(ClosedSocket);
-	MySessionManager.Delete(*FindSession);
-	FindSession = nullptr;
+	if (FindSession)
+	{
+		MySessionManager.Delete(*FindSession);
+		FindSession = nullptr;
+	}
+	
 	//모든 유저한테 보내기
 
 	for (auto Receiver : MySessionManager.SessionList)
