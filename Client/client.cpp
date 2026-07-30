@@ -3,6 +3,7 @@
 
 #include "ChatPacket.h"
 #include "NetUtil.h"
+#include "UserPacket_generated.h"
 
 #include <winsock2.h>
 #include <Windows.h>
@@ -18,6 +19,7 @@
 
 
 using namespace std;
+using namespace flatbuffers;
 
 char SendBuffer[1024] = { 0, };
 char RecvBuffer[1024] = { 0, };
@@ -25,6 +27,7 @@ char RecvBuffer[1024] = { 0, };
 bool IsRecvThreadRunning = true;
 bool IsSendThreadRunning = true;
 bool IsRanderThreadRunning = true;
+bool ToggleLogin = true;
 
 //다른 클라 정보관리
 SessionManager MySessionManager;
@@ -32,15 +35,18 @@ SessionManager MySessionManager;
 //내 소켓 아이디
 SOCKET MyClientID;
 
-void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer, const Header& InHeader); // Recv받은 패킷에 따라 역할수행
+void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer); // Recv받은 패킷에 따라 역할수행
 unsigned WINAPI RecvThread(void* Argument); 
 unsigned WINAPI SendThread(void* Argument); 
 unsigned WINAPI RanderThread(void* Argument);
 
 void SendPacket(SOCKET ServerSocket, IPacket& Data, EPacketType Type);
 
-void Render(SDL_Renderer* MyRender); //랜더 함수
+void Render(); //콘솔용
 void HideCursor(); //커서 숨기기 함수
+void SignUp(SOCKET ServerSocket);
+void LogIn(SOCKET ServerSocket);
+void LogOut(SOCKET ServerSocket);
 
 SDL_Window* InitWindow(); //윈도우Init
 SDL_Renderer* CreateRender(SDL_Window* window); //랜더러 생성
@@ -53,8 +59,8 @@ SDL_Event event;
 //세션Lock
 std::mutex sessionLock;
 
-//queue
-std::queue<int> KeyBuffer;
+//유저 정보
+string userId, userPwd;
 
 int main(int argc, char* argv[])
 {
@@ -78,28 +84,52 @@ int main(int argc, char* argv[])
 	ServerSockAddr.sin_port = htons(35000);
 
 	connect(ServerSocket, (SOCKADDR*)&ServerSockAddr, sizeof(ServerSockAddr));
-
 	cout << "client connect" << endl;
-
-	C2S_Login LoginData;
-	LoginData.UserID = "Origin";
-	LoginData.HashKey = "base64incoding";
-
-	Header LoginHeader;
-	LoginHeader.MakeHeader(static_cast<unsigned short>(LoginData.ToString().length()), EPacketType::C2S_Login);
-
-	//Login 요청
-	SendAll(ServerSocket, (char*)&LoginHeader, HeaderSize);
-	SendAll(ServerSocket, LoginData.ToString().c_str(), (int)LoginData.ToString().length());
-	cout << "Login 요청함" << endl;
 
 	HANDLE ThreadHandles[3] = { 0, };
 
 	//nonblocking, asynchrous
 	ThreadHandles[0] = (HANDLE)_beginthreadex(0, 0, RecvThread, &ServerSocket, /*CREATE_SUSPENDED*/0, 0);
-	ThreadHandles[1] = (HANDLE)_beginthreadex(0, 0, SendThread, &ServerSocket, /*CREATE_SUSPENDED*/0, 0);
+	//ThreadHandles[1] = (HANDLE)_beginthreadex(0, 0, SendThread, &ServerSocket, /*CREATE_SUSPENDED*/0, 0);
 	ThreadHandles[2] = (HANDLE)_beginthreadex(0, 0, RanderThread, MyRender, /*CREATE_SUSPENDED*/0, 0);
 
+	Work_LOOPS:
+	cout << "원하시는 작업의 숫자를 입력해주세요(ex 1)" << endl;
+	cout << "1.SignUp" << endl;
+	cout << "2.LogIn" << endl;
+	cout << "3.LogOut" << endl;
+	//작업 테스트
+	while(ToggleLogin)
+	{
+		if (_kbhit())
+		{
+			int KeyCode = _getch();
+			switch (KeyCode)
+			{
+			case '1':
+			{
+				SignUp(ServerSocket);
+			}
+			break;
+			case '2':
+			{
+				LogIn(ServerSocket);
+			}
+			break;
+			case '3':
+			{
+				LogOut(ServerSocket);
+			}
+			break;
+			default:
+				cout << "다시 입력해주세요" << endl;
+				break;
+			};
+		}
+	}
+
+	SDL_ShowWindow(MyWindow);
+	cout << "SDL 이벤트 시작" << endl;
 	//SDL 이벤트
 	while (IsRanderThreadRunning) {
 		while (SDL_PollEvent(&event)) {
@@ -110,20 +140,42 @@ int main(int argc, char* argv[])
 			{
 				SDL_Keycode pressedKey = event.key.keysym.sym;
 
-				const char* KeyCode = SDL_GetKeyName(pressedKey);
-				if (pressedKey == 'w' ||
+				if (pressedKey == 'c')
+				{
+					flatbuffers::FlatBufferBuilder SendBuilder;
+					auto C2S_ChangeColorData = UserPacket::CreateC2S_ChangeColor(
+						SendBuilder,
+						(uint16_t)MyClientID);
+					auto UserPacketData = UserPacket::CreatePacketData(
+						SendBuilder,
+						UserPacket::PacketType_C2S_ChangeColor,
+						C2S_ChangeColorData.Union()
+					);
+					SendBuilder.Finish(UserPacketData);
+					SendAll(ServerSocket, SendBuilder);
+				}
+				else if (pressedKey == 'w' ||
 					pressedKey == 'a' ||
 					pressedKey == 's' ||
 					pressedKey == 'd')
 				{
-					C2S_Move Data;
-					Data.ClientSocket = MyClientID;
-					//0번 유저 강제로 움직이게하기
-					//Session* FindSession = MySessionManager.GetSession(0);
-					//Data.ClientSocket = FindSession->ClientSocket;
+					flatbuffers::FlatBufferBuilder SendBuilder;
+					flatbuffers::Offset<UserPacket::C2S_Move> C2S_MoveData;
+					C2S_MoveData = UserPacket::CreateC2S_Move(
+						SendBuilder,
+						(uint16_t)MyClientID,
+						(int8_t)pressedKey
+					);
 					
-					Data.Direction = *KeyCode;
-					SendPacket(ServerSocket, Data, EPacketType::C2S_Move);
+					auto UserPacketData = UserPacket::CreatePacketData(
+						SendBuilder,
+						UserPacket::PacketType_C2S_Move,
+						C2S_MoveData.Union()
+					);
+
+					SendBuilder.Finish(UserPacketData);
+
+					SendAll(ServerSocket, SendBuilder);
 				}
 			}
 		}
@@ -142,6 +194,7 @@ int main(int argc, char* argv[])
 
 	CloseHandle(ThreadHandles[0]);
 	CloseHandle(ThreadHandles[1]);
+	CloseHandle(ThreadHandles[2]);
 
 	WSACleanup();
 
@@ -153,62 +206,87 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer, const Header& InHeader)
+void ProcessPacket(SOCKET ProcessSocket, const char* InBuffer)
 {
-	switch ((EPacketType)InHeader.PacketType)
+	auto UserPacketData = UserPacket::GetPacketData(InBuffer);
+
+	switch (UserPacketData->data_type())
 	{
-	case EPacketType::S2C_Login:
+	case UserPacket::PacketType_S2C_Login:
 	{
-		S2C_Login LoginPacket;
-		LoginPacket.Parse(InBuffer);
-		MyClientID = LoginPacket.ClientSocketID;
-		std::cout << LoginPacket.ClientSocketID << LoginPacket.Message << std::endl;
+		MyClientID = UserPacketData->data_as_S2C_Login()->client_socket_id();
+		if (UserPacketData->data_as_S2C_Login()->is_success())
+		{
+			ToggleLogin = false;
+		}
 	}
 	break;
-	case EPacketType::S2C_Spawn:
+	case UserPacket::PacketType_S2C_Spawn:
 	{
-		S2C_Spawn SpawnData;
-		SpawnData.Parse(InBuffer);
-		std::cout << SpawnData.ToString().c_str() << std::endl;
+		auto SpawnData = UserPacketData->data_as_S2C_Spawn();
 
 		//다른 클라이언트 정보 가지고 있는 세션매니저에 자기정보 저장
 		//원래는 세션이 아니라 엑터 매니저
-		Session Insession;
-		Insession.ClientSocket = SpawnData.ClientSocket;
-		Insession.Shape = SpawnData.Shape;
-		Insession.X = SpawnData.X;
-		Insession.Y = SpawnData.Y;
-		Insession.R = SpawnData.R;
-		Insession.G = SpawnData.G;
-		Insession.B = SpawnData.B;
+		Session InSession;
+		InSession.ClientSocket = SpawnData->client_socket_id();
+		InSession.Shape = SpawnData->shape();
+		InSession.X = SpawnData->position()->x();
+		InSession.Y = SpawnData->position()->y();
+		InSession.R = SpawnData->color()->r();
+		InSession.G = SpawnData->color()->g();
+		InSession.B = SpawnData->color()->b();
 		sessionLock.lock();
-		MySessionManager.Add(Insession);
+		MySessionManager.Add(InSession);
 		sessionLock.unlock();
-		//Render(MyRender);
 	}
 	break;
-	case EPacketType::S2C_Move:
+	case UserPacket::PacketType_S2C_Move:
 	{
-		S2C_Move MoveData;
-		MoveData.Parse(InBuffer);
-		Session* FindSession = MySessionManager.GetSession(MoveData.ClientSocket);
-		FindSession->X = MoveData.X;
-		FindSession->Y = MoveData.Y;
+		auto MoveData = UserPacketData->data_as_S2C_Move();
 
-		//std::cout << MoveData.ToString() << std::endl;
-		//Render(MyRender);
+		Session* FindSession = MySessionManager.GetSession((SOCKET)MoveData->client_socket_id());
+		sessionLock.lock();
+		FindSession->X = MoveData->position()->x();
+		FindSession->Y = MoveData->position()->y();
+		sessionLock.unlock();
 	}
 	break;
-	case EPacketType::S2C_Destroy:
+	case UserPacket::PacketType_S2C_Destroy:
 	{
-		S2C_Destroy DestroyPacket;
-		DestroyPacket.Parse(InBuffer);
-		std::cout << DestroyPacket.ClientSocket << std::endl;
-		Session* FindSession = MySessionManager.GetSession(DestroyPacket.ClientSocket);
+		auto DestroyData = UserPacketData->data_as_S2C_Destroy();
+		Session* FindSession = MySessionManager.GetSession((SOCKET)DestroyData->client_socket_id());
 		sessionLock.lock(); //Rander쓰레드에 사용할 수 있으므로 Lock
 		MySessionManager.Delete(*FindSession);
 		sessionLock.unlock();
-		//Render(MyRender);
+	}
+	break;
+	case UserPacket::PacketType_S2C_ChangeColor:
+	{
+		auto ChangeColorData = UserPacketData->data_as_S2C_ChangeColor();
+		Session* FindSession = MySessionManager.GetSession((SOCKET)ChangeColorData -> client_socket_id());
+		sessionLock.lock();
+		FindSession->R = ChangeColorData->color()->r();
+		FindSession->G = ChangeColorData->color()->g();
+		FindSession->B = ChangeColorData->color()->b();
+		sessionLock.unlock();
+	}
+	break;
+	case UserPacket::PacketType_S2C_LogOut:
+	{
+		auto LogOutData = UserPacketData->data_as_S2C_LogOut();
+		cout << LogOutData->user_id() << " 로그아웃 성공 유무: " << LogOutData->is_success() << endl;
+	}
+	break;
+	case UserPacket::PacketType_S2C_SignUp:
+	{
+		auto SignUpData = UserPacketData->data_as_S2C_SignUp();
+		cout << SignUpData->user_id()->c_str() << " 회원가입 성공 유무: " << SignUpData->is_success() << endl;
+		if (SignUpData->is_success())
+		{
+			cout << "원하시는 작업의 숫자를 입력해주세요(ex 1)" << endl;
+			cout << "1.SignUp" << endl;
+			cout << "2.LogIn" << endl;
+		}
 	}
 	break;
 	}
@@ -220,31 +298,73 @@ unsigned WINAPI RecvThread(void* Argument)
 
 	while (IsRecvThreadRunning)
 	{
-		Header HeaderData;
-		//header
-		int RecvBytes = RecvAll(ServerSocket, (char*)&HeaderData, sizeof(HeaderData));
+		int RecvBytes = RecvAll(ServerSocket, RecvBuffer);
 		if (RecvBytes <= 0)
 		{
-			cout << "recv fail " << endl;
-			break;
-		}
-		HeaderData.NetworkToHost();
-
-		memset(RecvBuffer, 0, sizeof(RecvBuffer));
-		//data JSON
-		RecvBytes = RecvAll(ServerSocket, RecvBuffer, HeaderData.PacketSize);
-		if (RecvBytes <= 0)
-		{
-			cout << "recv fail " << endl;
+			std::cout << "recv fail " << endl;
 			break;
 		}
 
-		ProcessPacket(ServerSocket, RecvBuffer, HeaderData);
+		ProcessPacket(ServerSocket, RecvBuffer);
 	
 	}
 	return 0;
 }
 
+void SignUp(SOCKET ServerSocket)
+{
+	string userName;
+	cout << "아이디 입력: ";
+	cin >> userId;
+	cout << "비밀번호 입력: ";
+	cin >> userPwd;
+	cout << "이름 입력: ";
+	cin >> userName;
+
+	flatbuffers::FlatBufferBuilder SendBuilder;
+	auto C2S_SignUp_Data = UserPacket::CreateC2S_SignUp(
+		SendBuilder,
+		SendBuilder.CreateString(userId.c_str()),
+		SendBuilder.CreateString(userPwd.c_str()),
+		SendBuilder.CreateString(userName.c_str())
+	);
+	auto UserPacketData = UserPacket::CreatePacketData(
+		SendBuilder,
+		UserPacket::PacketType_C2S_SignUp,
+		C2S_SignUp_Data.Union()
+	);
+	SendBuilder.Finish(UserPacketData);
+	SendAll(ServerSocket, SendBuilder);
+};
+
+void LogIn(SOCKET ServerSocket)
+{
+	cout << "아이디 입력: ";
+	cin >> userId;
+	cout << "비밀번호 입력: ";
+	cin >> userPwd;
+	flatbuffers::FlatBufferBuilder SendBuilder;
+	auto C2S_Login_Data = UserPacket::CreateC2S_Login(
+		SendBuilder,
+		SendBuilder.CreateString(userId.c_str()),
+		SendBuilder.CreateString(userPwd.c_str()),
+		SendBuilder.CreateString("base64abcdefg")
+	);
+	auto UserPacketData = UserPacket::CreatePacketData(
+		SendBuilder,
+		UserPacket::PacketType_C2S_Login,
+		C2S_Login_Data.Union()
+	);
+	SendBuilder.Finish(UserPacketData);
+	SendAll(ServerSocket, SendBuilder);
+};
+
+void LogOut(SOCKET ServerSocket)
+{
+};
+
+//콘솔용 인풋
+//SDL사용하면서 사용안함
 unsigned WINAPI SendThread(void* Argument)
 {
 	//책임은 사용하는 놈이 진다.
@@ -252,29 +372,29 @@ unsigned WINAPI SendThread(void* Argument)
 
 	while (IsSendThreadRunning)
 	{
-		int KeyCode = _getch();
-		KeyCode = toupper(KeyCode);
-		if (KeyCode == 'W' ||
-			KeyCode == 'A' ||
-			KeyCode == 'S' ||
-			KeyCode == 'D')
-		{
-			C2S_Move Data;
-			Data.ClientSocket = MyClientID;
-			Data.Direction = (char)KeyCode;
-			SendPacket(ServerSocket, Data,EPacketType::C2S_Move);
-		}
-		else if (KeyCode == 13)
-		{
-			cin.getline(SendBuffer, sizeof(SendBuffer));
-			ChatPacket Data;
-			Data.UserID = "Test";
-			Data.Message = SendBuffer;
-			Data.Gold = 0;
-			std::string JSONString = Data.ToString();
-			SendPacket(ServerSocket, Data, EPacketType::ChatPacket);
-		}
-
+		//WASD로 움직이기 및 에코 채팅
+		//KeyCode = toupper(KeyCode);
+		//if (KeyCode == 'W' ||
+		//	KeyCode == 'A' ||
+		//	KeyCode == 'S' ||
+		//	KeyCode == 'D')
+		//{
+		//	C2S_Move Data;
+		//	Data.ClientSocket = MyClientID;
+		//	Data.Direction = (char)KeyCode;
+		//	SendPacket(ServerSocket, Data,EPacketType::C2S_Move);
+		//}
+		//else if (KeyCode == 13)
+		//{
+		//	cin.getline(SendBuffer, sizeof(SendBuffer));
+		//	ChatPacket Data;
+		//	Data.UserID = "Test";
+		//	Data.Message = SendBuffer;
+		//	Data.Gold = 0;
+		//	std::string JSONString = Data.ToString();
+		//	SendPacket(ServerSocket, Data, EPacketType::ChatPacket);
+		//}
+		//Rend();
 	}
 
 	return 0;
@@ -320,7 +440,7 @@ unsigned WINAPI RanderThread(void* Argument)
 }
 
 
-void Render(SDL_Renderer* MyRender)
+void Render()
 {
 	/*system("cls");
 	for (auto Player : MySessionManager.SessionList)
@@ -350,7 +470,7 @@ SDL_Window* InitWindow()
 		SDL_WINDOWPOS_CENTERED,           // 창 시작 X 위치 (화면 중앙)
 		SDL_WINDOWPOS_CENTERED,           // 창 시작 Y 위치 (화면 중앙)
 		1000, 800,                       // 창 가로, 세로 크기
-		SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE              // 창을 바로 표시
+		SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE              // 창을 바로 표시
 	);
 	return window;
 }

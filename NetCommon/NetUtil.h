@@ -11,6 +11,7 @@
 
 #include "SessionManager.h"
 
+#include "flatbuffers/flatbuffers.h"
 
 enum class EPacketType : unsigned short
 {
@@ -20,7 +21,14 @@ enum class EPacketType : unsigned short
 	S2C_Destroy,
 	C2S_Move,
 	S2C_Move,
-	ChatPacket,
+	C2S_Chat,
+	S2C_Chat,
+	C2S_ChangeColor,
+	S2C_ChangeColor,
+	C2S_SignUp,
+	S2C_SignUp,
+	C2S_LogOut,
+	S2C_LogOut,
 	Max
 };
 
@@ -51,6 +59,8 @@ const char* GetPacketTypeString(EPacketType Type);
 constexpr unsigned short HeaderSize = sizeof(Header);
 
 extern int RecvAll(SOCKET ReceiverSocket, char* OutData, int Size);
+extern int RecvAll(SOCKET ReceiverSocket, char* OutData);
 extern int SendAll(SOCKET ReceiverSocket, const char* InData, int Size);
+extern int SendAll(SOCKET ReceiverSocket, const flatbuffers::FlatBufferBuilder& Builder);
 
 extern void DisconnectSocket(SOCKET DisconnectedSocket, fd_set* Sockets);
