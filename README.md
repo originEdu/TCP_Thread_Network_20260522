@@ -1,5 +1,7 @@
 # ThreadStudy_20260522
 
+<img width="400" height="430" alt="CPP TCP 통신" src="https://github.com/user-attachments/assets/4fe0f35f-9a85-4fa6-800c-adb9574190eb" />
+
 ## [프로젝트 요약]
 
 Winsock TCP 기반 멀티플레이 학습 프로젝트. 
